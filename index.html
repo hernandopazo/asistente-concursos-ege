@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calculadora de Concursos Docentes</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-main">
+        <p class="department-title">Departamento de Ecología, Genética y Evolución, FCEyN - UBA</p>
+        <h1>Asistente para la Evaluación de Antecedentes y Prueba de Oposición</h1>
+        <h2 class="contest-title">Concurso JTP</h2>
+        <div class="contest-metadata">
+          <label class="administrative-field" for="administrative-details">
+            Información formal del concurso
+            <textarea
+              id="administrative-details"
+              class="administrative-details"
+              rows="2"
+              placeholder="Resoluciones, expedientes y otros datos administrativos..."
+            ></textarea>
+          </label>
+          <div class="contest-dates">
+            <label for="contest-start-date">
+              Fecha de inicio
+              <input id="contest-start-date" type="date">
+            </label>
+            <label for="contest-end-date">
+              Fecha de finalización
+              <input id="contest-end-date" type="date">
+            </label>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="export-data" class="secondary-button" type="button">Exportar JSON</button>
+          <label class="secondary-button file-button">
+            Importar JSON
+            <input id="import-data" type="file" accept="application/json" />
+          </label>
+        </div>
+      </div>
+      <div class="header-side">
+        <section class="header-evaluators" aria-labelledby="header-evaluators-title">
+          <div class="header-evaluators-heading">
+            <div>
+              <h2 id="header-evaluators-title">Evaluadores de la comisión</h2>
+              <p>Integrantes responsables del concurso.</p>
+            </div>
+            <button id="add-evaluador" class="primary-button" type="button">Agregar evaluador</button>
+          </div>
+          <div id="header-evaluators-list" class="header-evaluators-list"></div>
+        </section>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Secciones">
+      <button class="tab is-active" type="button" data-view="postulantes">Postulantes</button>
+      <button class="tab" type="button" data-view="config">Puntajes</button>
+      <button class="tab" type="button" data-view="docentes">Antecedentes docentes</button>
+      <button class="tab" type="button" data-view="cientificos">Antecedentes científicos</button>
+      <button class="tab" type="button" data-view="extension">Extensión</button>
+      <button class="tab" type="button" data-view="profesionales">Profesionales</button>
+      <button class="tab" type="button" data-view="otros">Otros</button>
+      <button class="tab" type="button" data-view="oposicion">Oposición</button>
+      <button class="tab" type="button" data-view="resultados">Resultados</button>
+      <button class="tab" type="button" data-view="merito">Orden de mérito</button>
+    </nav>
+
+    <main>
+      <section id="config" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Puntajes generales configurados</h2>
+            <p>Los rangos permitidos son fijos por reglamento. Edite los puntajes acordados.</p>
+          </div>
+        </div>
+
+        <div class="table-shell">
+          <table class="data-table" id="rubros-table">
+            <thead>
+              <tr>
+                <th>Rubro</th>
+                <th>Simple mín.</th>
+                <th>Simple máx.</th>
+                <th>Simple acordado</th>
+                <th>Exclusiva mín.</th>
+                <th>Exclusiva máx.</th>
+                <th>Exclusiva acordado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <th>Total</th>
+                <td></td>
+                <td></td>
+                <td id="total-simple">0</td>
+                <td></td>
+                <td></td>
+                <td id="total-exclusiva">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div id="config-alerts" class="alerts" aria-live="polite"></div>
+      </section>
+
+      <section id="merito" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Orden de mérito</h2>
+            <p>Clasificación automática según el total de las solapas actualmente cargadas.</p>
+          </div>
+          <button id="export-merit-excel" class="secondary-button" type="button">Descargar Excel</button>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Tipo de cargo en orden de mérito">
+          <button id="show-merit-simple" class="opposition-subtab is-active" type="button">JTP Simple</button>
+          <button id="show-merit-exclusive" class="opposition-subtab" type="button">JTP Exclusiva</button>
+        </div>
+
+        <div class="table-shell merit-shell">
+          <table class="data-table merit-table" id="merit-table">
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Postulante</th>
+                <th>Puntaje total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="alerts">
+          <div class="alert">El orden es provisional hasta incorporar y completar todas las solapas.</div>
+        </div>
+      </section>
+
+      <section id="postulantes" class="view is-visible">
+        <div class="section-heading">
+          <div>
+            <h2>Postulantes</h2>
+            <div id="postulantes-summary" class="postulantes-summary" aria-live="polite"></div>
+            <p>Todos los inscriptos se consideran del EGE. Marque adicionalmente si pertenecen al DEGE o a otro departamento.</p>
+          </div>
+          <div class="section-actions">
+            <label class="secondary-button file-button">
+              Cargar Excel/CSV
+              <input id="import-postulantes" type="file" accept=".xlsx,.xls,.csv,text/csv" />
+            </label>
+            <button id="sort-postulantes" class="secondary-button" type="button">Ordenar A → Z</button>
+            <button id="add-postulante" class="primary-button" type="button">Agregar postulante</button>
+          </div>
+        </div>
+
+        <div class="table-shell">
+          <table class="data-table" id="postulantes-table">
+            <thead>
+              <tr>
+                <th>Número</th>
+                <th>Apellido</th>
+                <th>Nombres</th>
+                <th>Simple</th>
+                <th>Exclusiva</th>
+                <th>DEGE</th>
+                <th>Otro Depto.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="postulantes-import-status" class="alerts" aria-live="polite"></div>
+      </section>
+
+      <section id="oposicion" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Oposición</h2>
+            <p>Configurá una sola vez los criterios y compará la carga de cada evaluador en matrices compactas.</p>
+          </div>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Vistas de oposición">
+          <button id="show-criteria" class="opposition-subtab" type="button">Criterios y pesos</button>
+          <button id="show-evaluations" class="opposition-subtab is-active" type="button">Carga de evaluadores</button>
+        </div>
+
+        <section id="criteria-panel" class="opposition-panel">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Criterios y pesos</h3>
+              <p>Los criterios son comunes a todos los evaluadores. Podés agregar nuevos criterios o editar los existentes.</p>
+            </div>
+            <div class="section-actions">
+              <button id="restore-opposition-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+              <button id="add-criterio" class="primary-button" type="button">Agregar criterio</button>
+            </div>
+          </div>
+          <div class="criteria-table-heading" aria-hidden="true">
+            <span>Criterio de evaluación</span>
+            <span>Peso</span>
+          </div>
+          <div id="criterios-list" class="criteria-list"></div>
+          <div id="peso-summary" class="weight-summary"></div>
+        </section>
+
+        <section id="evaluations-panel" class="opposition-panel is-visible">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Evaluadores</h3>
+              <p>Seleccioná un integrante de la comisión para cargar o comparar sus calificaciones. Los nombres se administran en el encabezado.</p>
+            </div>
+          </div>
+          <div id="evaluador-tabs" class="evaluator-tabs" role="tablist" aria-label="Evaluadores"></div>
+          <div id="evaluadores-list"></div>
+        </section>
+      </section>
+
+      <section id="docentes" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Antecedentes docentes</h2>
+            <p>Configure los tipos de antecedentes y cargue una única valoración para cada postulante.</p>
+          </div>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Vistas de antecedentes docentes">
+          <button id="show-docentes-config" class="opposition-subtab" type="button">Tipos y puntuación</button>
+          <button id="show-docentes-entry" class="opposition-subtab is-active" type="button">Carga de antecedentes</button>
+        </div>
+
+        <section id="docentes-config-panel" class="opposition-panel">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Tipos de antecedentes y puntuación</h3>
+              <p>Los valores corresponden al cargo Simple. Exclusiva se calcula proporcionalmente.</p>
+            </div>
+            <button id="restore-docentes-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+          </div>
+          <div class="teaching-penalty-setting">
+            <div>
+              <strong>Factores para antecedentes FCEyN realizados fuera del EGE</strong>
+              <small>Se aplican únicamente a cargos JTP y Ayudante de primera. Use valores entre 0 y 1.</small>
+            </div>
+            <label for="docentes-factor-dege">
+              Factor DEGE
+              <input id="docentes-factor-dege" type="number" min="0" max="1" step="0.01">
+            </label>
+            <label for="docentes-factor-otro-depto">
+              Factor Otro Depto.
+              <input id="docentes-factor-otro-depto" type="number" min="0" max="1" step="0.01">
+            </label>
+          </div>
+          <div id="docentes-types-list" class="teaching-types"></div>
+          <div id="docentes-config-summary" class="weight-summary"></div>
+        </section>
+
+        <section id="docentes-entry-panel" class="opposition-panel is-visible">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Carga por postulante</h3>
+              <p>Ingrese el valor solicitado en cada bloque. Los subtotales y puntajes relativizados se calculan automáticamente.</p>
+            </div>
+          </div>
+          <div id="docentes-evaluation-controls" class="antecedent-evaluation-controls"></div>
+          <div id="docentes-matrix"></div>
+        </section>
+      </section>
+
+      <section id="cientificos" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Antecedentes científicos</h2>
+            <p>Configure los criterios científicos y cargue las cantidades correspondientes a cada postulante.</p>
+          </div>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Vistas de antecedentes científicos">
+          <button id="show-cientificos-config" class="opposition-subtab" type="button">Criterios y puntuación</button>
+          <button id="show-cientificos-entry" class="opposition-subtab is-active" type="button">Carga de antecedentes</button>
+        </div>
+
+        <section id="cientificos-config-panel" class="opposition-panel">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Criterios científicos y puntuación</h3>
+              <p>La escala interna proviene de la tabla original. Simple y Exclusiva se relativizan según Puntajes.</p>
+            </div>
+            <button id="restore-cientificos-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+          </div>
+          <div id="cientificos-types-list" class="teaching-types"></div>
+          <div id="cientificos-config-summary" class="weight-summary"></div>
+        </section>
+
+        <section id="cientificos-entry-panel" class="opposition-panel is-visible">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Carga por postulante</h3>
+              <p>Ingrese cantidades por categoría. Cada bloque aplica su propio tope antes de calcular los puntajes finales.</p>
+            </div>
+          </div>
+          <div id="cientificos-evaluation-controls" class="antecedent-evaluation-controls"></div>
+          <div id="cientificos-matrix"></div>
+        </section>
+      </section>
+
+      <section id="extension" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Antecedentes de extensión</h2>
+            <p>Configure los tipos de antecedentes y cargue las cantidades correspondientes a cada postulante.</p>
+          </div>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Vistas de antecedentes de extensión">
+          <button id="show-extension-config" class="opposition-subtab" type="button">Tipos y puntuación</button>
+          <button id="show-extension-entry" class="opposition-subtab is-active" type="button">Carga de antecedentes</button>
+        </div>
+
+        <section id="extension-config-panel" class="opposition-panel">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Tipos de antecedentes y puntuación</h3>
+              <p>La escala interna proviene de la tabla original. Simple y Exclusiva se relativizan de forma independiente según Puntajes.</p>
+            </div>
+            <button id="restore-extension-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+          </div>
+          <div id="extension-types-list" class="teaching-types"></div>
+          <div id="extension-config-summary" class="weight-summary"></div>
+        </section>
+
+        <section id="extension-entry-panel" class="opposition-panel is-visible">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Carga por postulante</h3>
+              <p>Ingrese cantidades por categoría. Cada bloque aplica su propio tope antes de calcular los puntajes finales.</p>
+            </div>
+          </div>
+          <div id="extension-evaluation-controls" class="antecedent-evaluation-controls"></div>
+          <div id="extension-matrix"></div>
+        </section>
+      </section>
+
+      <section id="profesionales" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Antecedentes profesionales</h2>
+            <p>Configure los tipos de antecedentes profesionales y cargue las cantidades correspondientes a cada postulante.</p>
+          </div>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Vistas de antecedentes profesionales">
+          <button id="show-profesionales-config" class="opposition-subtab" type="button">Tipos y puntuación</button>
+          <button id="show-profesionales-entry" class="opposition-subtab is-active" type="button">Carga de antecedentes</button>
+        </div>
+
+        <section id="profesionales-config-panel" class="opposition-panel">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Tipos de antecedentes y puntuación</h3>
+              <p>La escala interna proviene de la tabla original. Simple y Exclusiva se relativizan de forma independiente según Puntajes.</p>
+            </div>
+            <button id="restore-profesionales-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+          </div>
+          <div id="profesionales-types-list" class="teaching-types"></div>
+          <div id="profesionales-config-summary" class="weight-summary"></div>
+        </section>
+
+        <section id="profesionales-entry-panel" class="opposition-panel is-visible">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Carga por postulante</h3>
+              <p>Ingrese cantidades por categoría. Cada bloque aplica su propio tope antes de calcular los puntajes finales.</p>
+            </div>
+          </div>
+          <div id="profesionales-evaluation-controls" class="antecedent-evaluation-controls"></div>
+          <div id="profesionales-matrix"></div>
+        </section>
+      </section>
+
+      <section id="otros" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Otros antecedentes</h2>
+            <p>Calificaciones, títulos, gestión, becas, premios y otros antecedentes complementarios.</p>
+          </div>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Vistas de otros antecedentes">
+          <button id="show-otros-config" class="opposition-subtab" type="button">Tipos y puntuación</button>
+          <button id="show-otros-entry" class="opposition-subtab is-active" type="button">Carga de antecedentes</button>
+        </div>
+
+        <section id="otros-config-panel" class="opposition-panel">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Tipos de antecedentes y puntuación</h3>
+              <p>Los bloques tienen topes propios y el total aplica un segundo tope general. Simple y Exclusiva se relativizan de forma independiente.</p>
+            </div>
+            <button id="restore-otros-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+          </div>
+          <div class="teaching-penalty-setting">
+            <div>
+              <strong>Tope interno general</strong>
+              <small>Se aplica después de sumar los subtotales ya limitados de todos los bloques.</small>
+            </div>
+            <label for="otros-total-interno">
+              Puntaje máximo
+              <input id="otros-total-interno" type="number" min="0" step="0.01">
+            </label>
+          </div>
+          <div id="otros-types-list" class="teaching-types"></div>
+          <div id="otros-config-summary" class="weight-summary"></div>
+        </section>
+
+        <section id="otros-entry-panel" class="opposition-panel is-visible">
+          <div class="opposition-panel-heading">
+            <div>
+              <h3>Carga por postulante</h3>
+              <p>Ingrese cantidades por categoría. Se aplican primero los topes de bloque y luego el tope general.</p>
+            </div>
+          </div>
+          <div id="otros-evaluation-controls" class="antecedent-evaluation-controls"></div>
+          <div id="otros-matrix"></div>
+        </section>
+      </section>
+
+      <section id="resultados" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Resultados generales</h2>
+            <p>Los postulantes se muestran en columnas y los rubros respetan el orden definido en Puntajes.</p>
+          </div>
+          <button id="export-results-excel" class="secondary-button" type="button">Descargar Excel</button>
+        </div>
+
+        <div class="opposition-subtabs" role="tablist" aria-label="Tipo de cargo en resultados">
+          <button id="show-results-simple" class="opposition-subtab is-active" type="button">JTP Simple</button>
+          <button id="show-results-exclusive" class="opposition-subtab" type="button">JTP Exclusiva</button>
+        </div>
+
+        <div class="table-shell results-shell">
+          <table class="data-table results-table" id="resultados-table">
+            <thead></thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+          </table>
+        </div>
+        <div class="alerts">
+          <div class="alert">Los totales son parciales hasta incorporar las restantes solapas de antecedentes.</div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>
+        Puntajes basados en Res. CD 28/09 y modificaciones hasta el 14/12/2023;
+        texto ordenado REGL-CONC-001, versión 4 (24/10/2024).
+      </p>
+      <p>Idea y realización: Prof. Hernán Dopazo · Desarrollo asistido con Codex, OpenAI.</p>
+    </footer>
+
+    <div id="calculation-tooltip" class="calculation-tooltip" role="tooltip"></div>
+
+    <script src="vendor/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
