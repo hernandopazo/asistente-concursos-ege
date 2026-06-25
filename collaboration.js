@@ -592,6 +592,15 @@
     accessPanel.hidden = !accessPanel.hidden;
     if (!accessPanel.hidden) renderAccessList();
   });
+  document.querySelector("#copy-access-link").addEventListener("click", async () => {
+    const status = document.querySelector("#access-status");
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      setStatus(status, "Enlace de ingreso copiado.");
+    } catch (_error) {
+      setStatus(status, `Comparta este enlace: ${window.location.origin}`);
+    }
+  });
   document.querySelector("#close-access-panel").addEventListener("click", () => {
     accessPanel.hidden = true;
   });

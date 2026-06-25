@@ -32,105 +32,16 @@
       </form>
     </div>
 
-    <header class="app-header">
-      <div class="header-main">
+    <header class="app-header app-header-compact">
+      <div>
         <p class="department-title">Departamento de Ecología, Genética y Evolución, FCEyN - UBA</p>
         <h1>Asistente para la Evaluación de Antecedentes y Prueba de Oposición</h1>
-        <h2 class="contest-title">Concurso JTP</h2>
-        <div class="contest-metadata">
-          <label class="administrative-field" for="administrative-details">
-            Información formal del concurso
-            <textarea
-              id="administrative-details"
-              class="administrative-details"
-              rows="2"
-              placeholder="Resoluciones, expedientes y otros datos administrativos..."
-            ></textarea>
-          </label>
-          <div class="contest-dates">
-            <label for="contest-start-date">
-              Fecha de inicio
-              <input id="contest-start-date" type="date">
-            </label>
-            <label for="contest-end-date">
-              Fecha de finalización
-              <input id="contest-end-date" type="date">
-            </label>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button id="export-data" class="secondary-button" type="button">Exportar JSON</button>
-          <label class="secondary-button file-button">
-            Importar JSON
-            <input id="import-data" type="file" accept="application/json" />
-          </label>
-        </div>
-      </div>
-      <div class="header-side">
-        <section class="header-evaluators" aria-labelledby="header-evaluators-title">
-          <div class="header-evaluators-heading">
-            <div>
-              <h2 id="header-evaluators-title">Evaluadores de la comisión</h2>
-              <p>Integrantes responsables del concurso.</p>
-            </div>
-            <button id="add-evaluador" class="primary-button" type="button">Agregar evaluador</button>
-          </div>
-          <div id="header-evaluators-list" class="header-evaluators-list"></div>
-        </section>
       </div>
     </header>
 
-    <section id="collaboration-toolbar" class="collaboration-toolbar" hidden>
-      <div class="collaboration-session">
-        <strong id="collaboration-user"></strong>
-        <span id="collaboration-role"></span>
-      </div>
-      <label>
-        Concurso compartido
-        <select id="competition-select">
-          <option value="">Cargando concursos...</option>
-        </select>
-      </label>
-      <div id="competition-create-controls" class="competition-create-controls">
-        <input id="competition-name" type="text" value="Concurso JTP" aria-label="Nombre del nuevo concurso">
-        <button id="create-competition" class="secondary-button" type="button">Crear concurso</button>
-      </div>
-      <button id="manage-access" class="secondary-button" type="button">Accesos</button>
-      <span id="sync-status" class="sync-status">Sin concurso seleccionado</span>
-      <button id="auth-sign-out" class="secondary-button" type="button">Salir</button>
-    </section>
-
-    <section id="access-panel" class="access-panel" hidden>
-      <div class="access-panel-heading">
-        <div>
-          <h2>Acceso de evaluadores</h2>
-          <p>Autorice un email y asígnele un lugar en la terna. Luego esa persona podrá ingresar o crear su cuenta.</p>
-        </div>
-        <button id="close-access-panel" class="icon-button" type="button" title="Cerrar">×</button>
-      </div>
-      <div class="access-invite-form">
-        <label>
-          Email de acceso
-          <input id="invite-email" type="email" placeholder="evaluador@ejemplo.com">
-        </label>
-        <label>
-          Nombre visible
-          <input id="invite-name" type="text" placeholder="Nombre del evaluador">
-        </label>
-        <label>
-          Lugar en la terna
-          <select id="invite-evaluator">
-            <option value="">Seleccione un evaluador</option>
-          </select>
-        </label>
-        <button id="send-invitation" class="primary-button" type="button">Autorizar evaluador</button>
-      </div>
-      <div id="access-status" class="auth-status" aria-live="polite"></div>
-      <div id="access-list" class="access-list"></div>
-    </section>
-
     <nav class="tabs" aria-label="Secciones">
-      <button class="tab is-active" type="button" data-view="postulantes">Postulantes</button>
+      <button class="tab is-active" type="button" data-view="concurso">Concurso</button>
+      <button class="tab" type="button" data-view="postulantes">Postulantes</button>
       <button class="tab" type="button" data-view="config">Puntajes</button>
       <button class="tab" type="button" data-view="docentes">Antecedentes docentes</button>
       <button class="tab" type="button" data-view="cientificos">Antecedentes científicos</button>
@@ -143,6 +54,139 @@
     </nav>
 
     <main>
+      <section id="concurso" class="view is-visible">
+        <div class="section-heading">
+          <div>
+            <h2>Crear y administrar concurso</h2>
+            <p>Configure el concurso, la terna y los accesos antes de comenzar las evaluaciones.</p>
+          </div>
+          <span id="sync-status" class="sync-status">Sin concurso seleccionado</span>
+        </div>
+
+        <section id="collaboration-toolbar" class="collaboration-toolbar setup-session" hidden>
+          <div class="collaboration-session">
+            <span>Sesión actual</span>
+            <strong id="collaboration-user"></strong>
+            <span id="collaboration-role"></span>
+          </div>
+          <button id="auth-sign-out" class="secondary-button" type="button">Salir de la cuenta</button>
+        </section>
+
+        <div class="contest-setup-grid">
+          <section class="setup-section">
+            <div class="setup-section-heading">
+              <div>
+                <h3>Concurso compartido</h3>
+                <p>Seleccione uno existente o cree un concurso nuevo.</p>
+              </div>
+            </div>
+            <label>
+              Concurso activo
+              <select id="competition-select">
+                <option value="">Cargando concursos...</option>
+              </select>
+            </label>
+            <div id="competition-create-controls" class="competition-create-controls">
+              <label>
+                Nombre del nuevo concurso
+                <input id="competition-name" type="text" value="Concurso JTP">
+              </label>
+              <button id="create-competition" class="primary-button" type="button">Crear concurso</button>
+            </div>
+          </section>
+
+          <section class="setup-section">
+            <div class="setup-section-heading">
+              <div>
+                <h3>Información formal</h3>
+                <p>Resoluciones, expedientes y período administrativo.</p>
+              </div>
+            </div>
+            <label class="administrative-field" for="administrative-details">
+              Referencias administrativas
+              <textarea
+                id="administrative-details"
+                class="administrative-details"
+                rows="4"
+                placeholder="Resoluciones, expedientes y otros datos administrativos..."
+              ></textarea>
+            </label>
+            <div class="contest-dates">
+              <label for="contest-start-date">
+                Fecha de inicio
+                <input id="contest-start-date" type="date">
+              </label>
+              <label for="contest-end-date">
+                Fecha de finalización
+                <input id="contest-end-date" type="date">
+              </label>
+            </div>
+          </section>
+
+          <section class="setup-section">
+            <div class="header-evaluators-heading">
+              <div>
+                <h3 id="header-evaluators-title">Evaluadores de la comisión</h3>
+                <p>El administrador ocupa el primer lugar. Edite nombres y colores aquí.</p>
+              </div>
+              <button id="add-evaluador" class="primary-button" type="button">Agregar evaluador</button>
+            </div>
+            <div id="header-evaluators-list" class="header-evaluators-list"></div>
+          </section>
+
+          <section class="setup-section">
+            <div class="setup-section-heading">
+              <div>
+                <h3>Respaldo</h3>
+                <p>Descargue o recupere una copia completa del concurso.</p>
+              </div>
+            </div>
+            <div class="header-actions">
+              <button id="export-data" class="secondary-button" type="button">Exportar JSON</button>
+              <label class="secondary-button file-button">
+                Importar JSON
+                <input id="import-data" type="file" accept="application/json" />
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <section class="setup-section setup-access-section">
+          <div class="access-panel-heading">
+            <div>
+              <h3>Acceso de evaluadores</h3>
+              <p>Autorice el email exacto de cada evaluador. Esa persona deberá ingresar o crear su cuenta con ese mismo email.</p>
+            </div>
+            <div class="section-actions">
+              <button id="copy-access-link" class="secondary-button" type="button">Copiar enlace de ingreso</button>
+              <button id="manage-access" class="secondary-button" type="button">Administrar accesos</button>
+            </div>
+          </div>
+          <div id="access-status" class="auth-status" aria-live="polite"></div>
+          <div id="access-panel" hidden>
+            <div class="access-invite-form">
+              <label>
+                Email de acceso
+                <input id="invite-email" type="email" placeholder="evaluador@ejemplo.com">
+              </label>
+              <label>
+                Nombre visible
+                <input id="invite-name" type="text" placeholder="Nombre del evaluador">
+              </label>
+              <label>
+                Lugar en la terna
+                <select id="invite-evaluator">
+                  <option value="">Seleccione un evaluador</option>
+                </select>
+              </label>
+              <button id="send-invitation" class="primary-button" type="button">Autorizar evaluador</button>
+            </div>
+            <div id="access-list" class="access-list"></div>
+          </div>
+          <button id="close-access-panel" class="visually-hidden" type="button" tabindex="-1">Cerrar</button>
+        </section>
+      </section>
+
       <section id="config" class="view">
         <div class="section-heading">
           <div>
@@ -212,7 +256,7 @@
         </div>
       </section>
 
-      <section id="postulantes" class="view is-visible">
+      <section id="postulantes" class="view">
         <div class="section-heading">
           <div>
             <h2>Postulantes</h2>
