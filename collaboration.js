@@ -31,6 +31,7 @@
   let loadedUserId = null;
   let sessionSequence = 0;
   let occupiedEvaluatorKeys = new Map();
+  let competitionMembers = [];
 
   function withTimeout(promise, milliseconds, message) {
     return Promise.race([
@@ -66,6 +67,12 @@
     }
     if (/email not confirmed/i.test(message)) {
       return "La cuenta todavía no fue confirmada. Abra el enlace enviado a su email.";
+    }
+    if (/only one additional administrator is allowed/i.test(message)) {
+      return "Ya existe un coadministrador. Solo se permite uno adicional.";
+    }
+    if (/only the primary administrator/i.test(message)) {
+      return "Solo el administrador principal puede otorgar o retirar este permiso.";
     }
     return message || "No se pudo completar el acceso.";
   }
@@ -273,14 +280,17 @@
         if (error) throw error;
       }
 
-      if (currentMember.evaluator_key) {
+      const evaluatorMembers = currentMember.role === "admin"
+        ? competitionMembers.filter((member) => member.evaluator_key)
+        : [currentMember].filter((member) => member.evaluator_key);
+      if (evaluatorMembers.length) {
         const { error } = await client
           .from("evaluator_states")
-          .upsert({
+          .upsert(evaluatorMembers.map((member) => ({
             competition_id: currentCompetition.id,
-            user_id: session.user.id,
-            data: evaluatorStateSnapshot(currentMember.evaluator_key)
-          });
+            user_id: member.user_id,
+            data: evaluatorStateSnapshot(member.evaluator_key)
+          })));
         if (error) throw error;
       }
       setSyncStatus(`Guardado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`, "is-saved");
@@ -427,8 +437,9 @@
       client.from("competition_members").select("*").eq("competition_id", currentCompetition.id),
       client.from("competition_invitations").select("*").eq("competition_id", currentCompetition.id)
     ]);
+    competitionMembers = members || [];
     occupiedEvaluatorKeys = new Map();
-    (members || []).forEach((member) => {
+    competitionMembers.forEach((member) => {
       if (member.evaluator_key) {
         occupiedEvaluatorKeys.set(member.evaluator_key, member.display_name || member.user_id);
       }
@@ -442,14 +453,23 @@
       }
     });
     fillEvaluatorOptions();
-    const memberRows = (members || []).map((member) => `
+    const canManageAdmins = session.user.id === currentCompetition.owner_id;
+    const memberRows = competitionMembers.map((member) => `
       <div class="access-row">
         <span>${escapeAttribute(member.display_name || member.user_id)}</span>
         <span>${escapeAttribute(
           state.oposicion.evaluadores.find((item) => item.id === member.evaluator_key)?.nombre
             || member.role
         )}</span>
-        <strong>Activo</strong>
+        <strong>${member.role === "admin" ? "Administrador" : "Evaluador"}</strong>
+        ${canManageAdmins && member.user_id !== currentCompetition.owner_id ? `
+          <button
+            class="small-button"
+            type="button"
+            data-toggle-admin="${member.user_id}"
+            data-next-admin="${member.role === "admin" ? "false" : "true"}"
+          >${member.role === "admin" ? "Quitar coadministrador" : "Hacer coadministrador"}</button>
+        ` : `<span></span>`}
       </div>
     `);
     const invitationRows = (invitations || []).map((invitation) => `
@@ -460,9 +480,32 @@
             || invitation.display_name
         )}</span>
         <strong>${invitation.accepted_at ? "Aceptada" : "Pendiente"}</strong>
+        <span></span>
       </div>
     `);
     list.innerHTML = [...memberRows, ...invitationRows].join("");
+    list.querySelectorAll("[data-toggle-admin]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        const makeAdmin = button.dataset.nextAdmin === "true";
+        const { error } = await client.rpc("set_member_admin", {
+          target_user_id: button.dataset.toggleAdmin,
+          make_admin: makeAdmin
+        });
+        if (error) {
+          setStatus(document.querySelector("#access-status"), authErrorMessage(error), true);
+        } else {
+          setStatus(
+            document.querySelector("#access-status"),
+            makeAdmin
+              ? "Coadministrador habilitado. Solo puede existir uno adicional."
+              : "Permiso de coadministrador retirado."
+          );
+          await loadCompetitions(currentCompetition.id);
+        }
+        button.disabled = false;
+      });
+    });
   }
 
   function setDisabled(selector, disabled) {
@@ -498,7 +541,10 @@
     ];
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));
 
-    setDisabled("#evaluadores-list input, #evaluadores-list textarea", activeEvaluatorId !== evaluatorKey);
+    setDisabled(
+      "#evaluadores-list input, #evaluadores-list textarea",
+      !isAdmin && activeEvaluatorId !== evaluatorKey
+    );
     setDisabled("#docentes-matrix input", activeDocentesCargaId !== evaluatorKey && !isAdmin);
     setDisabled("#cientificos-matrix input", activeCientificosCargaId !== evaluatorKey && !isAdmin);
     setDisabled("#extension-matrix input", activeExtensionCargaId !== evaluatorKey && !isAdmin);
@@ -511,6 +557,24 @@
         + "#otros-evaluation-controls input",
       !isAdmin
     );
+    document.querySelectorAll(
+      "#docentes-evaluation-controls [data-docentes-load], "
+        + "#cientificos-evaluation-controls [data-cientificos-load], "
+        + "#extension-evaluation-controls [data-extension-load], "
+        + "#profesionales-evaluation-controls [data-profesionales-load], "
+        + "#otros-evaluation-controls [data-otros-load]"
+    ).forEach((button) => {
+      if (isAdmin) {
+        button.disabled = false;
+        return;
+      }
+      const ownKey = button.dataset.docentesLoad
+        || button.dataset.cientificosLoad
+        || button.dataset.extensionLoad
+        || button.dataset.profesionalesLoad
+        || button.dataset.otrosLoad;
+      button.disabled = ownKey !== evaluatorKey;
+    });
   }
 
   async function handleSession(nextSession) {
@@ -521,6 +585,7 @@
       memberships = [];
       currentCompetition = null;
       currentMember = null;
+      competitionMembers = [];
       occupiedEvaluatorKeys = new Map();
       suppressSave = true;
       authGate.hidden = false;
@@ -590,6 +655,12 @@
   });
 
   document.querySelector("#auth-sign-out").addEventListener("click", async () => {
+    if (currentCompetition && currentMember) {
+      await saveRemoteState();
+      if (window.confirm("¿Desea descargar un respaldo JSON antes de salir?")) {
+        document.querySelector("#export-data").click();
+      }
+    }
     await handleSession(null);
     try {
       await withTimeout(client.auth.signOut({ scope: "local" }), 5000, "La sesión local ya fue cerrada.");

@@ -192,6 +192,58 @@ begin
 end;
 $$;
 
+create or replace function public.set_member_admin(
+  target_user_id uuid,
+  make_admin boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_competition_id uuid;
+  competition_owner_id uuid;
+begin
+  select member.competition_id, competition.owner_id
+  into target_competition_id, competition_owner_id
+  from public.competition_members member
+  join public.competitions competition on competition.id = member.competition_id
+  where member.user_id = target_user_id
+    and member.active
+  limit 1;
+
+  if target_competition_id is null then
+    raise exception 'Evaluator not found';
+  end if;
+
+  if auth.uid() <> competition_owner_id then
+    raise exception 'Only the primary administrator can change administrator permissions';
+  end if;
+
+  if target_user_id = competition_owner_id then
+    raise exception 'The primary administrator cannot be demoted';
+  end if;
+
+  if make_admin and exists (
+    select 1
+    from public.competition_members
+    where competition_id = target_competition_id
+      and role = 'admin'
+      and user_id <> competition_owner_id
+      and user_id <> target_user_id
+      and active
+  ) then
+    raise exception 'Only one additional administrator is allowed';
+  end if;
+
+  update public.competition_members
+  set role = case when make_admin then 'admin' else 'evaluator' end
+  where competition_id = target_competition_id
+    and user_id = target_user_id;
+end;
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.competitions enable row level security;
 alter table public.competition_members enable row level security;
@@ -277,20 +329,29 @@ drop policy if exists evaluator_states_insert_self on public.evaluator_states;
 create policy evaluator_states_insert_self
 on public.evaluator_states for insert
 with check (
-  user_id = auth.uid()
-  and public.is_competition_member(competition_id)
+  public.is_competition_member(competition_id)
+  and (
+    user_id = auth.uid()
+    or public.is_competition_admin(competition_id)
+  )
 );
 
 drop policy if exists evaluator_states_update_self on public.evaluator_states;
 create policy evaluator_states_update_self
 on public.evaluator_states for update
 using (
-  user_id = auth.uid()
-  and public.is_competition_member(competition_id)
+  public.is_competition_member(competition_id)
+  and (
+    user_id = auth.uid()
+    or public.is_competition_admin(competition_id)
+  )
 )
 with check (
-  user_id = auth.uid()
-  and public.is_competition_member(competition_id)
+  public.is_competition_member(competition_id)
+  and (
+    user_id = auth.uid()
+    or public.is_competition_admin(competition_id)
+  )
 );
 
 drop policy if exists versions_select_members on public.state_versions;
@@ -311,6 +372,7 @@ with check (
 );
 
 grant execute on function public.claim_competition_invitations() to authenticated;
+grant execute on function public.set_member_admin(uuid, boolean) to authenticated;
 
 do $$
 begin

@@ -52,6 +52,25 @@ La aplicación utiliza Supabase para:
 El navegador conserva además una copia local y la aplicación permite exportar e
 importar archivos JSON.
 
+### Permisos
+
+- El administrador principal configura el concurso, administra la terna y puede
+  escribir o corregir las cargas de cualquier evaluador.
+- Solo los administradores eligen entre carga única consolidada o carga
+  independiente por evaluador.
+- Un evaluador común solo puede modificar su propia carga individual.
+- El administrador principal puede nombrar un único coadministrador adicional.
+- El coadministrador puede corregir cargas y configuración, pero no puede nombrar
+  otro coadministrador.
+
+### Resguardo de información
+
+Los cambios se guardan en Supabase y existe además una copia local del navegador.
+Antes de cerrar sesión se ofrece descargar un archivo JSON. Esta combinación
+reduce mucho el riesgo de pérdida, pero ningún sistema puede prometer riesgo cero:
+el JSON descargado sigue siendo el respaldo externo recomendado al cerrar una
+jornada o después de cambios importantes.
+
 La configuración pública del cliente se encuentra en `supabase-config.js`. La
 estructura de la base de datos, funciones y políticas está documentada en
 `supabase/schema.sql`.

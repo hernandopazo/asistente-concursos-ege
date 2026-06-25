@@ -336,11 +336,25 @@ body.auth-locked {
 
 .access-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(180px, 1fr) 120px;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 1fr) 120px minmax(170px, auto);
+  align-items: center;
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
   background: #f7f8f9;
+}
+
+.setup-summary {
+  margin-top: 16px;
+}
+
+.setup-summary ol {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--ink);
+  line-height: 1.4;
 }
 
 .collaboration-readonly {
@@ -1503,7 +1517,8 @@ main {
   }
 
   .contest-setup-grid,
-  .competition-create-controls {
+  .competition-create-controls,
+  .access-row {
     grid-template-columns: 1fr;
   }
 
