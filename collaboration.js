@@ -34,6 +34,27 @@
     element.classList.toggle("is-error", error);
   }
 
+  function authErrorMessage(error) {
+    const message = error?.message || "";
+    const retryMatch = message.match(/after (\d+) seconds?/i);
+    if (retryMatch) {
+      return `Espere ${retryMatch[1]} segundos antes de volver a intentarlo. Revise si ya recibió el correo de confirmación.`;
+    }
+    if (/email rate limit exceeded/i.test(message)) {
+      return "Se solicitaron demasiados correos. Espere un minuto y revise su bandeja de entrada o spam.";
+    }
+    if (/user already registered/i.test(message)) {
+      return "Esta cuenta ya existe. Confirme el email recibido y luego pulse Ingresar.";
+    }
+    if (/invalid login credentials/i.test(message)) {
+      return "Email o contraseña incorrectos, o la cuenta todavía no fue confirmada.";
+    }
+    if (/email not confirmed/i.test(message)) {
+      return "La cuenta todavía no fue confirmada. Abra el enlace enviado a su email.";
+    }
+    return message || "No se pudo completar el acceso.";
+  }
+
   function setSyncStatus(message, className = "") {
     syncStatus.textContent = message;
     syncStatus.className = `sync-status${className ? ` ${className}` : ""}`;
@@ -430,7 +451,7 @@
       email: document.querySelector("#auth-email").value.trim(),
       password: document.querySelector("#auth-password").value
     });
-    if (error) setStatus(authStatus, error.message, true);
+    if (error) setStatus(authStatus, authErrorMessage(error), true);
   });
 
   document.querySelector("#auth-sign-up").addEventListener("click", async () => {
@@ -451,7 +472,7 @@
       }
     });
     if (error) {
-      setStatus(authStatus, error.message, true);
+      setStatus(authStatus, authErrorMessage(error), true);
       return;
     }
     setStatus(
