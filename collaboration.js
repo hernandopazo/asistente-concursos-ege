@@ -154,7 +154,9 @@
     else {
       currentCompetition = null;
       currentMember = null;
+      accessPanel.hidden = true;
       setSyncStatus("Cree un concurso o acepte una invitación");
+      updateSessionUi();
       applyPermissions();
     }
   }
@@ -273,14 +275,19 @@
       ? `${currentMember.role === "admin" ? "Administrador" : "Evaluador"} · ${session.user.email}`
       : session?.user?.email || "";
     document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
+    document.querySelector("#manage-access").disabled = !currentCompetition;
+    document.querySelector("#create-competition").disabled = !session;
     fillEvaluatorOptions();
   }
 
   function fillEvaluatorOptions() {
     const select = document.querySelector("#invite-evaluator");
-    select.innerHTML = state.oposicion.evaluadores.map((evaluador) => `
-      <option value="${evaluador.id}">${escapeAttribute(evaluador.nombre)}</option>
-    `).join("");
+    const evaluadores = state?.oposicion?.evaluadores || [];
+    select.innerHTML = evaluadores.length
+      ? evaluadores.map((evaluador) => `
+          <option value="${evaluador.id}">${escapeAttribute(evaluador.nombre)}</option>
+        `).join("")
+      : `<option value="">No hay evaluadores configurados</option>`;
   }
 
   async function createCompetition() {
@@ -288,37 +295,20 @@
     setSyncStatus("Creando concurso…", "is-saving");
     const evaluatorKey = state.oposicion.evaluadores[0]?.id || null;
     const displayName = session.user.user_metadata?.display_name || session.user.email;
-    const { data: competition, error } = await client
-      .from("competitions")
-      .insert({
-        name,
-        administrative_details: state.administrativeDetails || "",
-        starts_on: state.contestStartDate || null,
-        ends_on: state.contestEndDate || null,
-        shared_state: sharedStateSnapshot(),
-        owner_id: session.user.id
-      })
-      .select()
-      .single();
+    if (!evaluatorKey) throw new Error("Configure al menos un evaluador antes de crear el concurso.");
+
+    const { data: competitionId, error } = await client.rpc("create_competition", {
+      initial_name: name,
+      initial_administrative_details: state.administrativeDetails || "",
+      initial_starts_on: state.contestStartDate || null,
+      initial_ends_on: state.contestEndDate || null,
+      initial_shared_state: sharedStateSnapshot(),
+      initial_evaluator_key: evaluatorKey,
+      initial_display_name: displayName,
+      initial_color: evaluatorColor(evaluatorKey)
+    });
     if (error) throw error;
-
-    const { error: memberError } = await client.from("competition_members").insert({
-      competition_id: competition.id,
-      user_id: session.user.id,
-      role: "admin",
-      evaluator_key: evaluatorKey,
-      display_name: displayName,
-      color: evaluatorColor(evaluatorKey)
-    });
-    if (memberError) throw memberError;
-
-    const { error: stateError } = await client.from("evaluator_states").upsert({
-      competition_id: competition.id,
-      user_id: session.user.id,
-      data: evaluatorStateSnapshot(evaluatorKey)
-    });
-    if (stateError) throw stateError;
-    await loadCompetitions(competition.id);
+    await loadCompetitions(competitionId);
   }
 
   async function inviteEvaluator() {
@@ -434,6 +424,7 @@
     toolbar.hidden = false;
     document.body.classList.remove("auth-locked");
     setStatus(authStatus, "");
+    updateSessionUi();
     try {
       await claimInvitations();
       await loadCompetitions();
@@ -485,14 +476,22 @@
 
   document.querySelector("#auth-sign-out").addEventListener("click", () => client.auth.signOut());
   document.querySelector("#create-competition").addEventListener("click", async () => {
+    const button = document.querySelector("#create-competition");
+    button.disabled = true;
     try {
       await createCompetition();
     } catch (error) {
       setSyncStatus(error.message || "No se pudo crear el concurso", "is-error");
+    } finally {
+      button.disabled = false;
     }
   });
   competitionSelect.addEventListener("change", () => loadCompetition(competitionSelect.value));
   document.querySelector("#manage-access").addEventListener("click", () => {
+    if (!currentCompetition || currentMember?.role !== "admin") {
+      setSyncStatus("Primero cree o seleccione un concurso compartido.", "is-error");
+      return;
+    }
     accessPanel.hidden = !accessPanel.hidden;
     if (!accessPanel.hidden) renderAccessList();
   });
@@ -514,6 +513,7 @@
   };
 
   document.body.classList.add("auth-locked");
+  fillEvaluatorOptions();
   client.auth.getSession().then(({ data }) => handleSession(data.session));
   client.auth.onAuthStateChange((_event, nextSession) => handleSession(nextSession));
 })();

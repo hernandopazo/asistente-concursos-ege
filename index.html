@@ -87,7 +87,9 @@
       </div>
       <label>
         Concurso compartido
-        <select id="competition-select"></select>
+        <select id="competition-select">
+          <option value="">Cargando concursos...</option>
+        </select>
       </label>
       <div id="competition-create-controls" class="competition-create-controls">
         <input id="competition-name" type="text" value="Concurso JTP" aria-label="Nombre del nuevo concurso">
@@ -109,7 +111,9 @@
       <div class="access-invite-form">
         <input id="invite-email" type="email" placeholder="evaluador@ejemplo.com" aria-label="Email del evaluador">
         <input id="invite-name" type="text" placeholder="Nombre del evaluador" aria-label="Nombre del evaluador">
-        <select id="invite-evaluator" aria-label="Identidad del evaluador"></select>
+        <select id="invite-evaluator" aria-label="Identidad del evaluador">
+          <option value="">Seleccione un evaluador</option>
+        </select>
         <button id="send-invitation" class="primary-button" type="button">Autorizar acceso</button>
       </div>
       <div id="access-status" class="auth-status" aria-live="polite"></div>
