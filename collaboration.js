@@ -69,7 +69,7 @@
       return "La cuenta todavía no fue confirmada. Abra el enlace enviado a su email.";
     }
     if (/only one additional administrator is allowed/i.test(message)) {
-      return "Ya existe un coadministrador. Solo se permite uno adicional.";
+      return "Ya existe un co-administrador. Solo se permite uno adicional.";
     }
     if (/only the primary administrator/i.test(message)) {
       return "Solo el administrador principal puede otorgar o retirar este permiso.";
@@ -350,7 +350,9 @@
       || currentMember?.color
       || "#2d6f8f";
     document.querySelector("#collaboration-role").textContent = currentMember
-      ? `${currentMember.role === "admin" ? "Administrador" : "Evaluador"} · ${session.user.email}`
+      ? `${currentMember.role === "admin"
+        ? (session.user.id === currentCompetition?.owner_id ? "Administrador principal" : "Co-administrador")
+        : "Evaluador"} · ${session.user.email}`
       : session?.user?.email || "";
     document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
     document.querySelector("#manage-access").disabled = !currentCompetition;
@@ -469,7 +471,9 @@
           state.oposicion.evaluadores.find((item) => item.id === member.evaluator_key)?.nombre
             || member.role
         )}</span>
-        <strong>${member.role === "admin" ? "Administrador" : "Evaluador"}</strong>
+        <strong>${member.role === "admin"
+          ? (member.user_id === currentCompetition.owner_id ? "Administrador principal" : "Co-administrador")
+          : "Evaluador"}</strong>
         ${canManageAdmins && member.user_id !== currentCompetition.owner_id ? `
           <button
             class="small-button"
@@ -478,9 +482,9 @@
             data-next-admin="${member.role === "admin" ? "false" : "true"}"
             ${additionalAdmin && additionalAdmin.user_id !== member.user_id ? "disabled" : ""}
             title="${additionalAdmin && additionalAdmin.user_id !== member.user_id
-              ? `Ya es coadministrador ${escapeAttribute(additionalAdmin.display_name)}`
+              ? `Ya es co-administrador ${escapeAttribute(additionalAdmin.display_name)}`
               : ""}"
-          >${member.role === "admin" ? "Quitar coadministrador" : "Designar coadministrador"}</button>
+          >${member.role === "admin" ? "Quitar co-administrador" : "Designar co-administrador"}</button>
         ` : `<span></span>`}
       </div>
     `);
@@ -510,8 +514,8 @@
           setStatus(
             document.querySelector("#access-status"),
             makeAdmin
-              ? "Coadministrador habilitado. Solo puede existir uno adicional."
-              : "Permiso de coadministrador retirado."
+              ? "Co-administrador habilitado. Solo puede existir uno adicional."
+              : "Permiso de co-administrador retirado."
           );
           await loadCompetitions(currentCompetition.id);
         }

@@ -59,9 +59,9 @@ importar archivos JSON.
 - Solo los administradores eligen entre carga única consolidada o carga
   independiente por evaluador.
 - Un evaluador común solo puede modificar su propia carga individual.
-- El administrador principal puede nombrar un único coadministrador adicional.
-- El coadministrador puede corregir cargas y configuración, pero no puede nombrar
-  otro coadministrador.
+- El administrador principal puede nombrar un único co-administrador adicional.
+- El co-administrador puede corregir cargas y configuración, pero no puede nombrar
+  otro co-administrador.
 
 ### Resguardo de información
 
