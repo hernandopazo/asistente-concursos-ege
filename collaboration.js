@@ -459,6 +459,9 @@
     });
     fillEvaluatorOptions();
     const canManageAdmins = session.user.id === currentCompetition.owner_id;
+    const additionalAdmin = competitionMembers.find(
+      (member) => member.role === "admin" && member.user_id !== currentCompetition.owner_id
+    );
     const memberRows = competitionMembers.map((member) => `
       <div class="access-row">
         <span>${escapeAttribute(member.display_name || member.user_id)}</span>
@@ -473,7 +476,11 @@
             type="button"
             data-toggle-admin="${member.user_id}"
             data-next-admin="${member.role === "admin" ? "false" : "true"}"
-          >${member.role === "admin" ? "Quitar coadministrador" : "Hacer coadministrador"}</button>
+            ${additionalAdmin && additionalAdmin.user_id !== member.user_id ? "disabled" : ""}
+            title="${additionalAdmin && additionalAdmin.user_id !== member.user_id
+              ? `Ya es coadministrador ${escapeAttribute(additionalAdmin.display_name)}`
+              : ""}"
+          >${member.role === "admin" ? "Quitar coadministrador" : "Designar coadministrador"}</button>
         ` : `<span></span>`}
       </div>
     `);
