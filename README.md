@@ -39,10 +39,30 @@ http://localhost:8787
 4. Publish directory: `.`
 5. Deploy.
 
-## Persistencia actual
+## Colaboración y persistencia
 
-Los datos se guardan en el almacenamiento local del navegador. También pueden
-exportarse e importarse como archivos JSON.
+La aplicación utiliza Supabase para:
 
-Esta primera versión pública está destinada a pruebas y recepción de sugerencias.
-Todavía no incorpora autenticación ni una base de datos compartida entre evaluadores.
+- Autenticar a administradores y evaluadores mediante email y contraseña.
+- Guardar la configuración compartida de cada concurso.
+- Mantener separada la carga individual de cada evaluador.
+- Sincronizar los cambios entre computadoras en tiempo real.
+- Controlar mediante políticas RLS qué datos puede leer o modificar cada usuario.
+
+El navegador conserva además una copia local y la aplicación permite exportar e
+importar archivos JSON.
+
+La configuración pública del cliente se encuentra en `supabase-config.js`. La
+estructura de la base de datos, funciones y políticas está documentada en
+`supabase/schema.sql`.
+
+## Primer uso
+
+1. Crear la cuenta de la persona administradora desde la pantalla de acceso.
+2. Confirmar el email, si la confirmación está habilitada en Supabase.
+3. Ingresar y crear el concurso compartido.
+4. Abrir **Accesos**, autorizar el email de cada evaluador y asignarle su identidad.
+5. Cada evaluador crea su cuenta con exactamente el email autorizado.
+
+En Supabase, la URL del sitio y las URLs de redirección de autenticación deben
+incluir el dominio publicado en Netlify.

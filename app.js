@@ -583,6 +583,7 @@ function migrateState(savedState) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  window.collaboration?.scheduleSave?.();
 }
 
 function seedEvaluations(nextState) {
@@ -1429,6 +1430,7 @@ function render() {
   renderProfesionalesView();
   renderOtrosView();
   saveState();
+  window.collaboration?.applyPermissions?.();
 }
 
 function renderOppositionView() {

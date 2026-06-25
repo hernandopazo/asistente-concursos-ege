@@ -7,6 +7,31 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div id="auth-gate" class="auth-gate">
+      <form id="auth-form" class="auth-panel">
+        <p class="department-title">EGE · FCEyN - UBA</p>
+        <h1>Acceso al asistente de concursos</h1>
+        <p>Ingrese con la cuenta autorizada para este concurso.</p>
+        <label>
+          Nombre
+          <input id="auth-display-name" type="text" autocomplete="name" placeholder="Sólo para crear una cuenta">
+        </label>
+        <label>
+          Email
+          <input id="auth-email" type="email" autocomplete="email" required>
+        </label>
+        <label>
+          Contraseña
+          <input id="auth-password" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <div class="auth-actions">
+          <button id="auth-sign-in" class="primary-button" type="submit">Ingresar</button>
+          <button id="auth-sign-up" class="secondary-button" type="button">Crear cuenta</button>
+        </div>
+        <div id="auth-status" class="auth-status" aria-live="polite"></div>
+      </form>
+    </div>
+
     <header class="app-header">
       <div class="header-main">
         <p class="department-title">Departamento de Ecología, Genética y Evolución, FCEyN - UBA</p>
@@ -54,6 +79,42 @@
         </section>
       </div>
     </header>
+
+    <section id="collaboration-toolbar" class="collaboration-toolbar" hidden>
+      <div class="collaboration-session">
+        <strong id="collaboration-user"></strong>
+        <span id="collaboration-role"></span>
+      </div>
+      <label>
+        Concurso compartido
+        <select id="competition-select"></select>
+      </label>
+      <div id="competition-create-controls" class="competition-create-controls">
+        <input id="competition-name" type="text" value="Concurso JTP" aria-label="Nombre del nuevo concurso">
+        <button id="create-competition" class="secondary-button" type="button">Crear concurso</button>
+      </div>
+      <button id="manage-access" class="secondary-button" type="button">Accesos</button>
+      <span id="sync-status" class="sync-status">Sin concurso seleccionado</span>
+      <button id="auth-sign-out" class="secondary-button" type="button">Salir</button>
+    </section>
+
+    <section id="access-panel" class="access-panel" hidden>
+      <div class="access-panel-heading">
+        <div>
+          <h2>Acceso de evaluadores</h2>
+          <p>Invite por email y asigne la identidad que utilizará dentro del concurso.</p>
+        </div>
+        <button id="close-access-panel" class="icon-button" type="button" title="Cerrar">×</button>
+      </div>
+      <div class="access-invite-form">
+        <input id="invite-email" type="email" placeholder="evaluador@ejemplo.com" aria-label="Email del evaluador">
+        <input id="invite-name" type="text" placeholder="Nombre del evaluador" aria-label="Nombre del evaluador">
+        <select id="invite-evaluator" aria-label="Identidad del evaluador"></select>
+        <button id="send-invitation" class="primary-button" type="button">Autorizar acceso</button>
+      </div>
+      <div id="access-status" class="auth-status" aria-live="polite"></div>
+      <div id="access-list" class="access-list"></div>
+    </section>
 
     <nav class="tabs" aria-label="Secciones">
       <button class="tab is-active" type="button" data-view="postulantes">Postulantes</button>
@@ -465,7 +526,10 @@
 
     <div id="calculation-tooltip" class="calculation-tooltip" role="tooltip"></div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="app.js"></script>
+    <script src="collaboration.js"></script>
   </body>
 </html>

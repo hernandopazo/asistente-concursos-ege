@@ -1,0 +1,498 @@
+(() => {
+  const config = window.SUPABASE_CONFIG;
+  if (!config?.url || !config?.publishableKey || !window.supabase) return;
+
+  const client = window.supabase.createClient(config.url, config.publishableKey);
+  const moduleKeys = [
+    "antecedentesDocentes",
+    "antecedentesCientificos",
+    "antecedentesExtension",
+    "antecedentesProfesionales",
+    "otrosAntecedentes"
+  ];
+
+  const authGate = document.querySelector("#auth-gate");
+  const authForm = document.querySelector("#auth-form");
+  const authStatus = document.querySelector("#auth-status");
+  const toolbar = document.querySelector("#collaboration-toolbar");
+  const competitionSelect = document.querySelector("#competition-select");
+  const syncStatus = document.querySelector("#sync-status");
+  const accessPanel = document.querySelector("#access-panel");
+
+  let session = null;
+  let memberships = [];
+  let currentCompetition = null;
+  let currentMember = null;
+  let realtimeChannel = null;
+  let saveTimer = null;
+  let reloadTimer = null;
+  let suppressSave = true;
+  let saving = false;
+
+  function setStatus(element, message, error = false) {
+    element.textContent = message;
+    element.classList.toggle("is-error", error);
+  }
+
+  function setSyncStatus(message, className = "") {
+    syncStatus.textContent = message;
+    syncStatus.className = `sync-status${className ? ` ${className}` : ""}`;
+  }
+
+  function sharedStateSnapshot() {
+    const shared = clone(state);
+    shared.oposicion.evaluadores.forEach((evaluador) => {
+      evaluador.evaluaciones = {};
+    });
+    moduleKeys.forEach((key) => {
+      shared[key].cargasEvaluadores = {};
+    });
+    return shared;
+  }
+
+  function evaluatorStateSnapshot(evaluatorKey) {
+    const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
+    return {
+      evaluatorKey,
+      oppositionEvaluations: clone(evaluador?.evaluaciones || {}),
+      modules: Object.fromEntries(moduleKeys.map((key) => [
+        key,
+        clone(state[key].cargasEvaluadores[evaluatorKey] || {})
+      ]))
+    };
+  }
+
+  function mergeEvaluatorState(remoteState) {
+    const evaluatorKey = remoteState?.data?.evaluatorKey;
+    if (!evaluatorKey) return;
+    const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
+    if (evaluador) {
+      evaluador.evaluaciones = clone(remoteState.data.oppositionEvaluations || {});
+    }
+    moduleKeys.forEach((key) => {
+      state[key].cargasEvaluadores[evaluatorKey] = clone(remoteState.data.modules?.[key] || {});
+    });
+  }
+
+  async function claimInvitations() {
+    const { error } = await client.rpc("claim_competition_invitations");
+    if (error) throw error;
+  }
+
+  async function loadCompetitions(preferredId = null) {
+    const { data: memberRows, error: memberError } = await client
+      .from("competition_members")
+      .select("*")
+      .eq("active", true);
+    if (memberError) throw memberError;
+
+    const memberCompetitionIds = memberRows.map((item) => item.competition_id);
+    const { data: ownedRows, error: ownedError } = await client
+      .from("competitions")
+      .select("*")
+      .eq("owner_id", session.user.id);
+    if (ownedError) throw ownedError;
+
+    let memberCompetitions = [];
+    if (memberCompetitionIds.length) {
+      const { data, error } = await client
+        .from("competitions")
+        .select("*")
+        .in("id", memberCompetitionIds);
+      if (error) throw error;
+      memberCompetitions = data;
+    }
+
+    const competitionMap = new Map(
+      [...ownedRows, ...memberCompetitions].map((competition) => [competition.id, competition])
+    );
+    memberships = [...competitionMap.values()].map((competition) => ({
+      competition,
+      member: memberRows.find((item) => item.competition_id === competition.id)
+        || {
+          competition_id: competition.id,
+          user_id: session.user.id,
+          role: "admin",
+          evaluator_key: state.oposicion.evaluadores[0]?.id || null,
+          display_name: session.user.user_metadata?.display_name || session.user.email
+        }
+    }));
+
+    competitionSelect.innerHTML = memberships.length
+      ? memberships.map(({ competition }) => `
+          <option value="${competition.id}">${escapeAttribute(competition.name)}</option>
+        `).join("")
+      : `<option value="">Sin concursos compartidos</option>`;
+
+    const targetId = preferredId
+      || currentCompetition?.id
+      || memberships[0]?.competition.id
+      || "";
+    competitionSelect.value = targetId;
+    if (targetId) await loadCompetition(targetId);
+    else {
+      currentCompetition = null;
+      currentMember = null;
+      setSyncStatus("Cree un concurso o acepte una invitación");
+      applyPermissions();
+    }
+  }
+
+  async function loadCompetition(competitionId) {
+    const membership = memberships.find((item) => item.competition.id === competitionId);
+    if (!membership) return;
+
+    setSyncStatus("Cargando datos compartidos…", "is-saving");
+    const { data: competition, error: competitionError } = await client
+      .from("competitions")
+      .select("*")
+      .eq("id", competitionId)
+      .single();
+    if (competitionError) throw competitionError;
+
+    const { data: remoteStates, error: statesError } = await client
+      .from("evaluator_states")
+      .select("*")
+      .eq("competition_id", competitionId);
+    if (statesError) throw statesError;
+
+    currentCompetition = competition;
+    currentMember = membership.member;
+    suppressSave = true;
+    state = seedEvaluations(migrateState(clone(competition.shared_state)));
+    remoteStates.forEach(mergeEvaluatorState);
+    activeEvaluatorId = currentMember.evaluator_key || state.oposicion.evaluadores[0]?.id || null;
+    activeDocentesCargaId = currentMember.evaluator_key || "consolidada";
+    activeCientificosCargaId = currentMember.evaluator_key || "consolidada";
+    activeExtensionCargaId = currentMember.evaluator_key || "consolidada";
+    activeProfesionalesCargaId = currentMember.evaluator_key || "consolidada";
+    activeOtrosCargaId = currentMember.evaluator_key || "consolidada";
+    render();
+    suppressSave = false;
+    updateSessionUi();
+    subscribeRealtime(competitionId);
+    await renderAccessList();
+    setSyncStatus("Datos sincronizados", "is-saved");
+  }
+
+  async function saveRemoteState() {
+    if (suppressSave || saving || !currentCompetition || !currentMember) return;
+    saving = true;
+    setSyncStatus("Guardando…", "is-saving");
+    try {
+      if (currentMember.role === "admin") {
+        const { error } = await client
+          .from("competitions")
+          .update({
+            name: currentCompetition.name,
+            administrative_details: state.administrativeDetails || "",
+            starts_on: state.contestStartDate || null,
+            ends_on: state.contestEndDate || null,
+            shared_state: sharedStateSnapshot()
+          })
+          .eq("id", currentCompetition.id);
+        if (error) throw error;
+      }
+
+      if (currentMember.evaluator_key) {
+        const { error } = await client
+          .from("evaluator_states")
+          .upsert({
+            competition_id: currentCompetition.id,
+            user_id: session.user.id,
+            data: evaluatorStateSnapshot(currentMember.evaluator_key)
+          });
+        if (error) throw error;
+      }
+      setSyncStatus(`Guardado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`, "is-saved");
+    } catch (error) {
+      setSyncStatus(error.message || "No se pudo guardar", "is-error");
+    } finally {
+      saving = false;
+    }
+  }
+
+  function scheduleSave() {
+    if (suppressSave || !currentCompetition) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveRemoteState, 700);
+  }
+
+  function subscribeRealtime(competitionId) {
+    if (realtimeChannel) client.removeChannel(realtimeChannel);
+    realtimeChannel = client
+      .channel(`competition-${competitionId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "competitions", filter: `id=eq.${competitionId}` },
+        scheduleReload
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "evaluator_states", filter: `competition_id=eq.${competitionId}` },
+        scheduleReload
+      )
+      .subscribe();
+  }
+
+  function scheduleReload() {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      if (!saving && currentCompetition) loadCompetition(currentCompetition.id);
+    }, 500);
+  }
+
+  function updateSessionUi() {
+    const displayName = currentMember?.display_name
+      || session?.user?.user_metadata?.display_name
+      || session?.user?.email
+      || "";
+    document.querySelector("#collaboration-user").textContent = displayName;
+    document.querySelector("#collaboration-role").textContent = currentMember
+      ? `${currentMember.role === "admin" ? "Administrador" : "Evaluador"} · ${session.user.email}`
+      : session?.user?.email || "";
+    document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
+    fillEvaluatorOptions();
+  }
+
+  function fillEvaluatorOptions() {
+    const select = document.querySelector("#invite-evaluator");
+    select.innerHTML = state.oposicion.evaluadores.map((evaluador) => `
+      <option value="${evaluador.id}">${escapeAttribute(evaluador.nombre)}</option>
+    `).join("");
+  }
+
+  async function createCompetition() {
+    const name = document.querySelector("#competition-name").value.trim() || "Concurso JTP";
+    setSyncStatus("Creando concurso…", "is-saving");
+    const evaluatorKey = state.oposicion.evaluadores[0]?.id || null;
+    const displayName = session.user.user_metadata?.display_name || session.user.email;
+    const { data: competition, error } = await client
+      .from("competitions")
+      .insert({
+        name,
+        administrative_details: state.administrativeDetails || "",
+        starts_on: state.contestStartDate || null,
+        ends_on: state.contestEndDate || null,
+        shared_state: sharedStateSnapshot(),
+        owner_id: session.user.id
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    const { error: memberError } = await client.from("competition_members").insert({
+      competition_id: competition.id,
+      user_id: session.user.id,
+      role: "admin",
+      evaluator_key: evaluatorKey,
+      display_name: displayName,
+      color: evaluatorColor(evaluatorKey)
+    });
+    if (memberError) throw memberError;
+
+    const { error: stateError } = await client.from("evaluator_states").upsert({
+      competition_id: competition.id,
+      user_id: session.user.id,
+      data: evaluatorStateSnapshot(evaluatorKey)
+    });
+    if (stateError) throw stateError;
+    await loadCompetitions(competition.id);
+  }
+
+  async function inviteEvaluator() {
+    if (!currentCompetition || currentMember?.role !== "admin") return;
+    const email = document.querySelector("#invite-email").value.trim().toLowerCase();
+    const displayName = document.querySelector("#invite-name").value.trim();
+    const evaluatorKey = document.querySelector("#invite-evaluator").value;
+    const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
+    if (!email || !displayName || !evaluatorKey) {
+      setStatus(document.querySelector("#access-status"), "Complete email, nombre e identidad.", true);
+      return;
+    }
+    const { error } = await client.from("competition_invitations").upsert({
+      competition_id: currentCompetition.id,
+      email,
+      role: "evaluator",
+      evaluator_key: evaluatorKey,
+      display_name: displayName,
+      color: evaluador?.color || "#2d6f8f",
+      accepted_at: null
+    }, { onConflict: "competition_id,email" });
+    if (error) throw error;
+    setStatus(document.querySelector("#access-status"), `Acceso autorizado para ${email}.`);
+    await renderAccessList();
+  }
+
+  async function renderAccessList() {
+    const list = document.querySelector("#access-list");
+    if (!currentCompetition || currentMember?.role !== "admin") {
+      list.innerHTML = "";
+      return;
+    }
+    const [{ data: members }, { data: invitations }] = await Promise.all([
+      client.from("competition_members").select("*").eq("competition_id", currentCompetition.id),
+      client.from("competition_invitations").select("*").eq("competition_id", currentCompetition.id)
+    ]);
+    const memberRows = (members || []).map((member) => `
+      <div class="access-row">
+        <span>${escapeAttribute(member.display_name || member.user_id)}</span>
+        <span>${escapeAttribute(member.role)}</span>
+        <strong>Activo</strong>
+      </div>
+    `);
+    const invitationRows = (invitations || []).map((invitation) => `
+      <div class="access-row">
+        <span>${escapeAttribute(invitation.email)}</span>
+        <span>${escapeAttribute(invitation.display_name)}</span>
+        <strong>${invitation.accepted_at ? "Aceptada" : "Pendiente"}</strong>
+      </div>
+    `);
+    list.innerHTML = [...memberRows, ...invitationRows].join("");
+  }
+
+  function setDisabled(selector, disabled) {
+    document.querySelectorAll(selector).forEach((element) => {
+      element.disabled = disabled;
+    });
+  }
+
+  function applyPermissions() {
+    if (!session || !currentCompetition || !currentMember) return;
+    const isAdmin = currentMember.role === "admin";
+    const evaluatorKey = currentMember.evaluator_key;
+
+    const adminSelectors = [
+      "#config input",
+      "#postulantes input",
+      "#postulantes button",
+      "#header-evaluators-list input",
+      "#header-evaluators-list button",
+      "#add-evaluador",
+      "#criteria-panel input",
+      "#criteria-panel button",
+      "#docentes-config-panel input",
+      "#docentes-config-panel button",
+      "#cientificos-config-panel input",
+      "#cientificos-config-panel button",
+      "#extension-config-panel input",
+      "#extension-config-panel button",
+      "#profesionales-config-panel input",
+      "#profesionales-config-panel button",
+      "#otros-config-panel input",
+      "#otros-config-panel button"
+    ];
+    adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));
+
+    setDisabled("#evaluadores-list input, #evaluadores-list textarea", activeEvaluatorId !== evaluatorKey);
+    setDisabled("#docentes-matrix input", activeDocentesCargaId !== evaluatorKey && !isAdmin);
+    setDisabled("#cientificos-matrix input", activeCientificosCargaId !== evaluatorKey && !isAdmin);
+    setDisabled("#extension-matrix input", activeExtensionCargaId !== evaluatorKey && !isAdmin);
+    setDisabled("#profesionales-matrix input", activeProfesionalesCargaId !== evaluatorKey && !isAdmin);
+    setDisabled("#otros-matrix input", activeOtrosCargaId !== evaluatorKey && !isAdmin);
+
+    setDisabled(
+      "#docentes-evaluation-controls input, #cientificos-evaluation-controls input, "
+        + "#extension-evaluation-controls input, #profesionales-evaluation-controls input, "
+        + "#otros-evaluation-controls input",
+      !isAdmin
+    );
+  }
+
+  async function handleSession(nextSession) {
+    session = nextSession;
+    if (!session) {
+      suppressSave = true;
+      authGate.hidden = false;
+      toolbar.hidden = true;
+      accessPanel.hidden = true;
+      document.body.classList.add("auth-locked");
+      return;
+    }
+    authGate.hidden = true;
+    toolbar.hidden = false;
+    document.body.classList.remove("auth-locked");
+    setStatus(authStatus, "");
+    try {
+      await claimInvitations();
+      await loadCompetitions();
+      updateSessionUi();
+      suppressSave = false;
+    } catch (error) {
+      setSyncStatus(error.message || "No se pudo iniciar la colaboración", "is-error");
+    }
+  }
+
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setStatus(authStatus, "Ingresando…");
+    const { error } = await client.auth.signInWithPassword({
+      email: document.querySelector("#auth-email").value.trim(),
+      password: document.querySelector("#auth-password").value
+    });
+    if (error) setStatus(authStatus, error.message, true);
+  });
+
+  document.querySelector("#auth-sign-up").addEventListener("click", async () => {
+    const email = document.querySelector("#auth-email").value.trim();
+    const password = document.querySelector("#auth-password").value;
+    const displayName = document.querySelector("#auth-display-name").value.trim();
+    if (!email || !password || !displayName) {
+      setStatus(authStatus, "Para crear la cuenta complete nombre, email y contraseña.", true);
+      return;
+    }
+    setStatus(authStatus, "Creando cuenta…");
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { display_name: displayName },
+        emailRedirectTo: window.location.origin
+      }
+    });
+    if (error) {
+      setStatus(authStatus, error.message, true);
+      return;
+    }
+    setStatus(
+      authStatus,
+      data.session
+        ? "Cuenta creada."
+        : "Cuenta creada. Revise su email para confirmarla antes de ingresar."
+    );
+  });
+
+  document.querySelector("#auth-sign-out").addEventListener("click", () => client.auth.signOut());
+  document.querySelector("#create-competition").addEventListener("click", async () => {
+    try {
+      await createCompetition();
+    } catch (error) {
+      setSyncStatus(error.message || "No se pudo crear el concurso", "is-error");
+    }
+  });
+  competitionSelect.addEventListener("change", () => loadCompetition(competitionSelect.value));
+  document.querySelector("#manage-access").addEventListener("click", () => {
+    accessPanel.hidden = !accessPanel.hidden;
+    if (!accessPanel.hidden) renderAccessList();
+  });
+  document.querySelector("#close-access-panel").addEventListener("click", () => {
+    accessPanel.hidden = true;
+  });
+  document.querySelector("#send-invitation").addEventListener("click", async () => {
+    try {
+      await inviteEvaluator();
+    } catch (error) {
+      setStatus(document.querySelector("#access-status"), error.message, true);
+    }
+  });
+
+  window.collaboration = {
+    scheduleSave,
+    applyPermissions,
+    client
+  };
+
+  document.body.classList.add("auth-locked");
+  client.auth.getSession().then(({ data }) => handleSession(data.session));
+  client.auth.onAuthStateChange((_event, nextSession) => handleSession(nextSession));
+})();
