@@ -395,5 +395,15 @@ begin
   ) then
     alter publication supabase_realtime add table public.evaluator_states;
   end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'competition_members'
+  ) then
+    alter publication supabase_realtime add table public.competition_members;
+  end if;
 end;
 $$;

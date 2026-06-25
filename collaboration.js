@@ -321,6 +321,11 @@
         { event: "*", schema: "public", table: "evaluator_states", filter: `competition_id=eq.${competitionId}` },
         scheduleReload
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "competition_members", filter: `competition_id=eq.${competitionId}` },
+        scheduleReload
+      )
       .subscribe();
   }
 
@@ -472,14 +477,14 @@
         ` : `<span></span>`}
       </div>
     `);
-    const invitationRows = (invitations || []).map((invitation) => `
+    const invitationRows = (invitations || []).filter((invitation) => !invitation.accepted_at).map((invitation) => `
       <div class="access-row">
         <span>${escapeAttribute(invitation.email)}</span>
         <span>${escapeAttribute(
           state.oposicion.evaluadores.find((item) => item.id === invitation.evaluator_key)?.nombre
             || invitation.display_name
         )}</span>
-        <strong>${invitation.accepted_at ? "Aceptada" : "Pendiente"}</strong>
+        <strong>Pendiente</strong>
         <span></span>
       </div>
     `);
