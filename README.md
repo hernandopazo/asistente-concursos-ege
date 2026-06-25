@@ -58,11 +58,18 @@ estructura de la base de datos, funciones y políticas está documentada en
 
 ## Primer uso
 
-1. Crear la cuenta de la persona administradora desde la pantalla de acceso.
+1. La persona administradora crea su cuenta desde la pantalla de acceso.
 2. Confirmar el email, si la confirmación está habilitada en Supabase.
-3. Ingresar y crear el concurso compartido.
-4. Abrir **Accesos**, autorizar el email de cada evaluador y asignarle su identidad.
-5. Cada evaluador crea su cuenta con exactamente el email autorizado.
+3. Ingresar y crear el concurso compartido. La cuenta administradora queda
+   asignada al primer lugar de la terna.
+4. Abrir **Accesos**, autorizar el email de cada evaluador y asignarle un lugar
+   libre de la terna.
+5. Cada evaluador ingresa o crea su cuenta con exactamente el email autorizado.
+   Al iniciar sesión, la autorización pendiente se incorpora automáticamente.
+
+La autorización no depende de un correo de invitación: el administrador puede
+comunicar directamente la URL pública del sitio. Los correos de confirmación de
+cuenta dependen de la configuración de email de Supabase.
 
 En Supabase, la URL del sitio y las URLs de redirección de autenticación deben
 incluir el dominio publicado en Netlify.

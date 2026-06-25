@@ -28,6 +28,17 @@
   let reloadTimer = null;
   let suppressSave = true;
   let saving = false;
+  let loadedUserId = null;
+  let sessionSequence = 0;
+
+  function withTimeout(promise, milliseconds, message) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(message)), milliseconds);
+      })
+    ]);
+  }
 
   function setStatus(element, message, error = false) {
     element.textContent = message;
@@ -109,30 +120,47 @@
   }
 
   async function claimInvitations() {
-    const { error } = await client.rpc("claim_competition_invitations");
+    const { error } = await withTimeout(
+      client.rpc("claim_competition_invitations"),
+      10000,
+      "La autorización demoró demasiado. Recargue la página."
+    );
     if (error) throw error;
   }
 
   async function loadCompetitions(preferredId = null) {
-    const { data: memberRows, error: memberError } = await client
-      .from("competition_members")
-      .select("*")
-      .eq("active", true);
+    competitionSelect.innerHTML = `<option value="">Cargando concursos...</option>`;
+    const { data: memberRows, error: memberError } = await withTimeout(
+      client
+        .from("competition_members")
+        .select("*")
+        .eq("active", true),
+      10000,
+      "No se pudieron cargar los concursos. Compruebe la conexión y recargue."
+    );
     if (memberError) throw memberError;
 
     const memberCompetitionIds = memberRows.map((item) => item.competition_id);
-    const { data: ownedRows, error: ownedError } = await client
-      .from("competitions")
-      .select("*")
-      .eq("owner_id", session.user.id);
+    const { data: ownedRows, error: ownedError } = await withTimeout(
+      client
+        .from("competitions")
+        .select("*")
+        .eq("owner_id", session.user.id),
+      10000,
+      "No se pudieron cargar los concursos administrados."
+    );
     if (ownedError) throw ownedError;
 
     let memberCompetitions = [];
     if (memberCompetitionIds.length) {
-      const { data, error } = await client
-        .from("competitions")
-        .select("*")
-        .in("id", memberCompetitionIds);
+      const { data, error } = await withTimeout(
+        client
+          .from("competitions")
+          .select("*")
+          .in("id", memberCompetitionIds),
+        10000,
+        "No se pudieron cargar los concursos compartidos."
+      );
       if (error) throw error;
       memberCompetitions = data;
     }
@@ -179,17 +207,25 @@
     if (!membership) return;
 
     setSyncStatus("Cargando datos compartidos…", "is-saving");
-    const { data: competition, error: competitionError } = await client
-      .from("competitions")
-      .select("*")
-      .eq("id", competitionId)
-      .single();
+    const { data: competition, error: competitionError } = await withTimeout(
+      client
+        .from("competitions")
+        .select("*")
+        .eq("id", competitionId)
+        .single(),
+      10000,
+      "El concurso demoró demasiado en cargar."
+    );
     if (competitionError) throw competitionError;
 
-    const { data: remoteStates, error: statesError } = await client
-      .from("evaluator_states")
-      .select("*")
-      .eq("competition_id", competitionId);
+    const { data: remoteStates, error: statesError } = await withTimeout(
+      client
+        .from("evaluator_states")
+        .select("*")
+        .eq("competition_id", competitionId),
+      10000,
+      "Las cargas de los evaluadores demoraron demasiado."
+    );
     if (statesError) throw statesError;
 
     currentCompetition = competition;
@@ -364,19 +400,9 @@
     if (error) throw error;
     scheduleSave();
 
-    const { error: emailError } = await client.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: window.location.origin
-      }
-    });
     setStatus(
       document.querySelector("#access-status"),
-      emailError
-        ? `La cuenta quedó autorizada, pero no se pudo enviar el email: ${authErrorMessage(emailError)}`
-        : `Acceso autorizado. Se envió un enlace de ingreso a ${email}.`,
-      Boolean(emailError)
+      `Acceso autorizado para ${email}. Esa persona debe ingresar o crear su cuenta usando exactamente ese email.`
     );
     await renderAccessList();
   }
@@ -463,15 +489,22 @@
   }
 
   async function handleSession(nextSession) {
+    const sequence = ++sessionSequence;
     session = nextSession;
     if (!session) {
+      loadedUserId = null;
+      memberships = [];
+      currentCompetition = null;
+      currentMember = null;
       suppressSave = true;
       authGate.hidden = false;
       toolbar.hidden = true;
       accessPanel.hidden = true;
+      competitionSelect.innerHTML = `<option value="">Sin sesión</option>`;
       document.body.classList.add("auth-locked");
       return;
     }
+    if (loadedUserId === session.user.id && currentCompetition) return;
     authGate.hidden = true;
     toolbar.hidden = false;
     document.body.classList.remove("auth-locked");
@@ -479,11 +512,16 @@
     updateSessionUi();
     try {
       await claimInvitations();
+      if (sequence !== sessionSequence) return;
       await loadCompetitions();
+      if (sequence !== sessionSequence) return;
+      loadedUserId = session.user.id;
       updateSessionUi();
       suppressSave = false;
     } catch (error) {
+      competitionSelect.innerHTML = `<option value="">No se pudo cargar</option>`;
       setSyncStatus(error.message || "No se pudo iniciar la colaboración", "is-error");
+      document.querySelector("#create-competition").disabled = false;
     }
   }
 
@@ -526,7 +564,14 @@
     );
   });
 
-  document.querySelector("#auth-sign-out").addEventListener("click", () => client.auth.signOut());
+  document.querySelector("#auth-sign-out").addEventListener("click", async () => {
+    await handleSession(null);
+    try {
+      await withTimeout(client.auth.signOut({ scope: "local" }), 5000, "La sesión local ya fue cerrada.");
+    } catch (_error) {
+      localStorage.removeItem(`sb-${new URL(config.url).hostname.split(".")[0]}-auth-token`);
+    }
+  });
   document.querySelector("#create-competition").addEventListener("click", async () => {
     const button = document.querySelector("#create-competition");
     button.disabled = true;
@@ -566,6 +611,11 @@
 
   document.body.classList.add("auth-locked");
   fillEvaluatorOptions();
-  client.auth.getSession().then(({ data }) => handleSession(data.session));
-  client.auth.onAuthStateChange((_event, nextSession) => handleSession(nextSession));
+  client.auth.getSession().then(({ data }) => {
+    setTimeout(() => handleSession(data.session), 0);
+  });
+  client.auth.onAuthStateChange((event, nextSession) => {
+    if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) return;
+    setTimeout(() => handleSession(nextSession), 0);
+  });
 })();

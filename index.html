@@ -11,7 +11,7 @@
       <form id="auth-form" class="auth-panel">
         <p class="department-title">EGE · FCEyN - UBA</p>
         <h1>Acceso al asistente de concursos</h1>
-        <p>Ingrese con la cuenta autorizada para este concurso.</p>
+        <p>El administrador crea la primera cuenta. Los evaluadores ingresan o crean la suya con el email autorizado.</p>
         <label>
           Nombre
           <input id="auth-display-name" type="text" autocomplete="name" placeholder="Sólo para crear una cuenta">
@@ -104,7 +104,7 @@
       <div class="access-panel-heading">
         <div>
           <h2>Acceso de evaluadores</h2>
-          <p>Autorice una cuenta, asígnele un lugar en la terna y envíele un enlace de ingreso.</p>
+          <p>Autorice un email y asígnele un lugar en la terna. Luego esa persona podrá ingresar o crear su cuenta.</p>
         </div>
         <button id="close-access-panel" class="icon-button" type="button" title="Cerrar">×</button>
       </div>
@@ -123,7 +123,7 @@
             <option value="">Seleccione un evaluador</option>
           </select>
         </label>
-        <button id="send-invitation" class="primary-button" type="button">Autorizar y enviar acceso</button>
+        <button id="send-invitation" class="primary-button" type="button">Autorizar evaluador</button>
       </div>
       <div id="access-status" class="auth-status" aria-live="polite"></div>
       <div id="access-list" class="access-list"></div>
