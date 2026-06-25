@@ -189,6 +189,15 @@ body.auth-locked {
   margin-top: 0;
 }
 
+.fixed-competition-name {
+  display: block;
+  padding: 14px 16px;
+  border-left: 4px solid var(--accent);
+  background: #eef3f5;
+  font-size: 19px;
+  line-height: 1.3;
+}
+
 .setup-session {
   justify-content: space-between;
   margin-bottom: 16px;

@@ -76,23 +76,14 @@
           <section class="setup-section">
             <div class="setup-section-heading">
               <div>
-                <h3>Concurso compartido</h3>
-                <p>Seleccione uno existente o cree un concurso nuevo.</p>
+                <h3>Concurso activo</h3>
+                <p>Esta versión de prueba trabaja con un único concurso compartido.</p>
               </div>
             </div>
-            <label>
-              Concurso activo
-              <select id="competition-select">
-                <option value="">Cargando concursos...</option>
-              </select>
-            </label>
-            <div id="competition-create-controls" class="competition-create-controls">
-              <label>
-                Nombre del nuevo concurso
-                <input id="competition-name" type="text" value="Concurso JTP">
-              </label>
-              <button id="create-competition" class="primary-button" type="button">Crear concurso</button>
-            </div>
+            <strong class="fixed-competition-name">Concurso JTP EGE. Semi y Exclusiva. Julio 2026</strong>
+            <select id="competition-select" class="visually-hidden" aria-hidden="true" tabindex="-1">
+              <option value="">Cargando concurso...</option>
+            </select>
           </section>
 
           <section class="setup-section">

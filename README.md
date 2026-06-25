@@ -60,8 +60,7 @@ estructura de la base de datos, funciones y políticas está documentada en
 
 1. La persona administradora crea su cuenta desde la pantalla de acceso.
 2. Confirmar el email, si la confirmación está habilitada en Supabase.
-3. Ingresar y crear el concurso compartido. La cuenta administradora queda
-   asignada al primer lugar de la terna.
+3. Ingresar al concurso fijo configurado para esta versión de prueba.
 4. Abrir **Accesos**, autorizar el email de cada evaluador y asignarle un lugar
    libre de la terna.
 5. Cada evaluador ingresa o crea su cuenta con exactamente el email autorizado.
@@ -73,3 +72,7 @@ cuenta dependen de la configuración de email de Supabase.
 
 En Supabase, la URL del sitio y las URLs de redirección de autenticación deben
 incluir el dominio publicado en Netlify.
+
+Esta versión utiliza un único concurso compartido:
+`Concurso JTP EGE. Semi y Exclusiva. Julio 2026`. La creación de concursos
+adicionales está deshabilitada tanto en la interfaz como en la base de datos.

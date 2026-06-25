@@ -331,7 +331,6 @@
       : session?.user?.email || "";
     document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
     document.querySelector("#manage-access").disabled = !currentCompetition;
-    document.querySelector("#create-competition").disabled = !session;
     fillEvaluatorOptions();
   }
 
@@ -349,28 +348,6 @@
       : `<option value="">No hay evaluadores configurados</option>`;
     const firstAvailable = evaluadores.find((evaluador) => !occupiedEvaluatorKeys.has(evaluador.id));
     select.value = firstAvailable?.id || "";
-  }
-
-  async function createCompetition() {
-    const name = document.querySelector("#competition-name").value.trim() || "Concurso JTP";
-    setSyncStatus("Creando concurso…", "is-saving");
-    const evaluatorKey = state.oposicion.evaluadores[0]?.id || null;
-    const displayName = session.user.user_metadata?.display_name || session.user.email;
-    if (!evaluatorKey) throw new Error("Configure al menos un evaluador antes de crear el concurso.");
-    state.oposicion.evaluadores.find((item) => item.id === evaluatorKey).nombre = displayName;
-
-    const { data: competitionId, error } = await client.rpc("create_competition", {
-      initial_name: name,
-      initial_administrative_details: state.administrativeDetails || "",
-      initial_starts_on: state.contestStartDate || null,
-      initial_ends_on: state.contestEndDate || null,
-      initial_shared_state: sharedStateSnapshot(),
-      initial_evaluator_key: evaluatorKey,
-      initial_display_name: displayName,
-      initial_color: evaluatorColor(evaluatorKey)
-    });
-    if (error) throw error;
-    await loadCompetitions(competitionId);
   }
 
   async function inviteEvaluator() {
@@ -562,7 +539,6 @@
     } catch (error) {
       competitionSelect.innerHTML = `<option value="">No se pudo cargar</option>`;
       setSyncStatus(error.message || "No se pudo iniciar la colaboración", "is-error");
-      document.querySelector("#create-competition").disabled = false;
     }
   }
 
@@ -611,17 +587,6 @@
       await withTimeout(client.auth.signOut({ scope: "local" }), 5000, "La sesión local ya fue cerrada.");
     } catch (_error) {
       localStorage.removeItem(`sb-${new URL(config.url).hostname.split(".")[0]}-auth-token`);
-    }
-  });
-  document.querySelector("#create-competition").addEventListener("click", async () => {
-    const button = document.querySelector("#create-competition");
-    button.disabled = true;
-    try {
-      await createCompetition();
-    } catch (error) {
-      setSyncStatus(error.message || "No se pudo crear el concurso", "is-error");
-    } finally {
-      button.disabled = false;
     }
   });
   competitionSelect.addEventListener("change", () => loadCompetition(competitionSelect.value));

@@ -192,88 +192,6 @@ begin
 end;
 $$;
 
-create or replace function public.create_competition(
-  initial_name text,
-  initial_administrative_details text,
-  initial_starts_on date,
-  initial_ends_on date,
-  initial_shared_state jsonb,
-  initial_evaluator_key text,
-  initial_display_name text,
-  initial_color text
-)
-returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  new_competition_id uuid;
-begin
-  if auth.uid() is null then
-    raise exception 'Authentication required';
-  end if;
-
-  insert into public.competitions (
-    name,
-    administrative_details,
-    starts_on,
-    ends_on,
-    shared_state,
-    owner_id
-  )
-  values (
-    coalesce(nullif(trim(initial_name), ''), 'Concurso JTP'),
-    coalesce(initial_administrative_details, ''),
-    initial_starts_on,
-    initial_ends_on,
-    coalesce(initial_shared_state, '{}'::jsonb),
-    auth.uid()
-  )
-  returning id into new_competition_id;
-
-  insert into public.competition_members (
-    competition_id,
-    user_id,
-    role,
-    evaluator_key,
-    display_name,
-    color
-  )
-  values (
-    new_competition_id,
-    auth.uid(),
-    'admin',
-    initial_evaluator_key,
-    coalesce(nullif(trim(initial_display_name), ''), auth.jwt() ->> 'email'),
-    coalesce(nullif(initial_color, ''), '#2d6f8f')
-  );
-
-  insert into public.evaluator_states (
-    competition_id,
-    user_id,
-    data
-  )
-  values (
-    new_competition_id,
-    auth.uid(),
-    jsonb_build_object(
-      'evaluatorKey', initial_evaluator_key,
-      'oppositionEvaluations', '{}'::jsonb,
-      'modules', jsonb_build_object(
-        'antecedentesDocentes', '{}'::jsonb,
-        'antecedentesCientificos', '{}'::jsonb,
-        'antecedentesExtension', '{}'::jsonb,
-        'antecedentesProfesionales', '{}'::jsonb,
-        'otrosAntecedentes', '{}'::jsonb
-      )
-    )
-  );
-
-  return new_competition_id;
-end;
-$$;
-
 alter table public.profiles enable row level security;
 alter table public.competitions enable row level security;
 alter table public.competition_members enable row level security;
@@ -393,16 +311,6 @@ with check (
 );
 
 grant execute on function public.claim_competition_invitations() to authenticated;
-grant execute on function public.create_competition(
-  text,
-  text,
-  date,
-  date,
-  jsonb,
-  text,
-  text,
-  text
-) to authenticated;
 
 do $$
 begin
