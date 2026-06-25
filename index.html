@@ -104,17 +104,26 @@
       <div class="access-panel-heading">
         <div>
           <h2>Acceso de evaluadores</h2>
-          <p>Invite por email y asigne la identidad que utilizará dentro del concurso.</p>
+          <p>Autorice una cuenta, asígnele un lugar en la terna y envíele un enlace de ingreso.</p>
         </div>
         <button id="close-access-panel" class="icon-button" type="button" title="Cerrar">×</button>
       </div>
       <div class="access-invite-form">
-        <input id="invite-email" type="email" placeholder="evaluador@ejemplo.com" aria-label="Email del evaluador">
-        <input id="invite-name" type="text" placeholder="Nombre del evaluador" aria-label="Nombre del evaluador">
-        <select id="invite-evaluator" aria-label="Identidad del evaluador">
-          <option value="">Seleccione un evaluador</option>
-        </select>
-        <button id="send-invitation" class="primary-button" type="button">Autorizar acceso</button>
+        <label>
+          Email de acceso
+          <input id="invite-email" type="email" placeholder="evaluador@ejemplo.com">
+        </label>
+        <label>
+          Nombre visible
+          <input id="invite-name" type="text" placeholder="Nombre del evaluador">
+        </label>
+        <label>
+          Lugar en la terna
+          <select id="invite-evaluator">
+            <option value="">Seleccione un evaluador</option>
+          </select>
+        </label>
+        <button id="send-invitation" class="primary-button" type="button">Autorizar y enviar acceso</button>
       </div>
       <div id="access-status" class="auth-status" aria-live="polite"></div>
       <div id="access-list" class="access-list"></div>

@@ -95,6 +95,19 @@
     });
   }
 
+  function normalizeEvaluatorNames(member) {
+    const evaluadores = state?.oposicion?.evaluadores || [];
+    evaluadores.forEach((evaluador, index) => {
+      evaluador.nombre = String(evaluador.nombre || "").trim() || `Evaluador ${index + 1}`;
+    });
+    if (!member?.evaluator_key) return;
+    const assigned = evaluadores.find((evaluador) => evaluador.id === member.evaluator_key);
+    const memberName = String(member.display_name || "").trim();
+    if (assigned && memberName && /^Evaluador \d+$/i.test(assigned.nombre)) {
+      assigned.nombre = memberName;
+    }
+  }
+
   async function claimInvitations() {
     const { error } = await client.rpc("claim_competition_invitations");
     if (error) throw error;
@@ -183,6 +196,7 @@
     currentMember = membership.member;
     suppressSave = true;
     state = seedEvaluations(migrateState(clone(competition.shared_state)));
+    normalizeEvaluatorNames(currentMember);
     remoteStates.forEach(mergeEvaluatorState);
     activeEvaluatorId = currentMember.evaluator_key || state.oposicion.evaluadores[0]?.id || null;
     activeDocentesCargaId = currentMember.evaluator_key || "consolidada";
@@ -296,6 +310,7 @@
     const evaluatorKey = state.oposicion.evaluadores[0]?.id || null;
     const displayName = session.user.user_metadata?.display_name || session.user.email;
     if (!evaluatorKey) throw new Error("Configure al menos un evaluador antes de crear el concurso.");
+    state.oposicion.evaluadores.find((item) => item.id === evaluatorKey).nombre = displayName;
 
     const { data: competitionId, error } = await client.rpc("create_competition", {
       initial_name: name,
@@ -321,6 +336,22 @@
       setStatus(document.querySelector("#access-status"), "Complete email, nombre e identidad.", true);
       return;
     }
+    const { data: occupiedMember, error: occupiedError } = await client
+      .from("competition_members")
+      .select("display_name")
+      .eq("competition_id", currentCompetition.id)
+      .eq("evaluator_key", evaluatorKey)
+      .maybeSingle();
+    if (occupiedError) throw occupiedError;
+    if (occupiedMember) {
+      setStatus(
+        document.querySelector("#access-status"),
+        `Ese lugar ya está asignado a ${occupiedMember.display_name}.`,
+        true
+      );
+      return;
+    }
+    evaluador.nombre = displayName;
     const { error } = await client.from("competition_invitations").upsert({
       competition_id: currentCompetition.id,
       email,
@@ -331,7 +362,22 @@
       accepted_at: null
     }, { onConflict: "competition_id,email" });
     if (error) throw error;
-    setStatus(document.querySelector("#access-status"), `Acceso autorizado para ${email}.`);
+    scheduleSave();
+
+    const { error: emailError } = await client.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: window.location.origin
+      }
+    });
+    setStatus(
+      document.querySelector("#access-status"),
+      emailError
+        ? `La cuenta quedó autorizada, pero no se pudo enviar el email: ${authErrorMessage(emailError)}`
+        : `Acceso autorizado. Se envió un enlace de ingreso a ${email}.`,
+      Boolean(emailError)
+    );
     await renderAccessList();
   }
 
@@ -348,14 +394,20 @@
     const memberRows = (members || []).map((member) => `
       <div class="access-row">
         <span>${escapeAttribute(member.display_name || member.user_id)}</span>
-        <span>${escapeAttribute(member.role)}</span>
+        <span>${escapeAttribute(
+          state.oposicion.evaluadores.find((item) => item.id === member.evaluator_key)?.nombre
+            || member.role
+        )}</span>
         <strong>Activo</strong>
       </div>
     `);
     const invitationRows = (invitations || []).map((invitation) => `
       <div class="access-row">
         <span>${escapeAttribute(invitation.email)}</span>
-        <span>${escapeAttribute(invitation.display_name)}</span>
+        <span>${escapeAttribute(
+          state.oposicion.evaluadores.find((item) => item.id === invitation.evaluator_key)?.nombre
+            || invitation.display_name
+        )}</span>
         <strong>${invitation.accepted_at ? "Aceptada" : "Pendiente"}</strong>
       </div>
     `);

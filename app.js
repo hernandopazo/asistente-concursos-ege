@@ -576,6 +576,7 @@ function migrateState(savedState) {
   const evaluatorColors = ["#d8a21b", "#2d7fb8", "#5b9b52", "#a05ca5", "#c65c46", "#3c9687"];
   savedState.oposicion.evaluadores.forEach((evaluador, index) => {
     evaluador.color ||= evaluatorColors[index % evaluatorColors.length];
+    evaluador.nombre = String(evaluador.nombre || "").trim() || `Evaluador ${index + 1}`;
   });
   delete savedState.postulantesSort;
   return savedState;
