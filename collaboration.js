@@ -74,6 +74,9 @@
     if (/only the primary administrator/i.test(message)) {
       return "Solo el administrador principal puede otorgar o retirar este permiso.";
     }
+    if (/primary administrator cannot be removed/i.test(message)) {
+      return "El administrador principal no puede ser eliminado.";
+    }
     return message || "No se pudo completar el acceso.";
   }
 
@@ -441,7 +444,11 @@
       return;
     }
     const [{ data: members }, { data: invitations }] = await Promise.all([
-      client.from("competition_members").select("*").eq("competition_id", currentCompetition.id),
+      client
+        .from("competition_members")
+        .select("*")
+        .eq("competition_id", currentCompetition.id)
+        .eq("active", true),
       client.from("competition_invitations").select("*").eq("competition_id", currentCompetition.id)
     ]);
     competitionMembers = members || [];
@@ -475,16 +482,24 @@
           ? (member.user_id === currentCompetition.owner_id ? "Administrador principal" : "Co-administrador")
           : "Evaluador"}</strong>
         ${canManageAdmins && member.user_id !== currentCompetition.owner_id ? `
-          <button
-            class="small-button"
-            type="button"
-            data-toggle-admin="${member.user_id}"
-            data-next-admin="${member.role === "admin" ? "false" : "true"}"
-            ${additionalAdmin && additionalAdmin.user_id !== member.user_id ? "disabled" : ""}
-            title="${additionalAdmin && additionalAdmin.user_id !== member.user_id
-              ? `Ya es co-administrador ${escapeAttribute(additionalAdmin.display_name)}`
-              : ""}"
-          >${member.role === "admin" ? "Quitar co-administrador" : "Designar co-administrador"}</button>
+          <div class="access-row-actions">
+            <button
+              class="small-button"
+              type="button"
+              data-toggle-admin="${member.user_id}"
+              data-next-admin="${member.role === "admin" ? "false" : "true"}"
+              ${additionalAdmin && additionalAdmin.user_id !== member.user_id ? "disabled" : ""}
+              title="${additionalAdmin && additionalAdmin.user_id !== member.user_id
+                ? `Ya es co-administrador ${escapeAttribute(additionalAdmin.display_name)}`
+                : ""}"
+            >${member.role === "admin" ? "Quitar co-administrador" : "Designar co-administrador"}</button>
+            <button
+              class="small-button danger-button"
+              type="button"
+              data-revoke-member="${member.user_id}"
+              data-revoke-name="${escapeAttribute(member.display_name)}"
+            >Revocar acceso</button>
+          </div>
         ` : `<span></span>`}
       </div>
     `);
@@ -496,7 +511,13 @@
             || invitation.display_name
         )}</span>
         <strong>Pendiente</strong>
-        <span></span>
+        ${canManageAdmins ? `
+          <button
+            class="small-button danger-button"
+            type="button"
+            data-cancel-invitation="${invitation.id}"
+          >Cancelar autorización</button>
+        ` : `<span></span>`}
       </div>
     `);
     list.innerHTML = [...memberRows, ...invitationRows].join("");
@@ -518,6 +539,40 @@
               : "Permiso de co-administrador retirado."
           );
           await loadCompetitions(currentCompetition.id);
+        }
+        button.disabled = false;
+      });
+    });
+    list.querySelectorAll("[data-revoke-member]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const name = button.dataset.revokeName || "este evaluador";
+        if (!window.confirm(`¿Revocar el acceso de ${name}? Sus cargas históricas se conservarán.`)) return;
+        button.disabled = true;
+        const { error } = await client.rpc("revoke_competition_member", {
+          target_user_id: button.dataset.revokeMember
+        });
+        if (error) {
+          setStatus(document.querySelector("#access-status"), authErrorMessage(error), true);
+        } else {
+          setStatus(document.querySelector("#access-status"), `Acceso revocado para ${name}.`);
+          await loadCompetitions(currentCompetition.id);
+        }
+        button.disabled = false;
+      });
+    });
+    list.querySelectorAll("[data-cancel-invitation]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (!window.confirm("¿Cancelar esta autorización pendiente?")) return;
+        button.disabled = true;
+        const { error } = await client
+          .from("competition_invitations")
+          .delete()
+          .eq("id", button.dataset.cancelInvitation);
+        if (error) {
+          setStatus(document.querySelector("#access-status"), error.message, true);
+        } else {
+          setStatus(document.querySelector("#access-status"), "Autorización pendiente cancelada.");
+          await renderAccessList();
         }
         button.disabled = false;
       });

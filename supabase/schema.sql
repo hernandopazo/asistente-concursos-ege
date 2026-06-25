@@ -172,7 +172,12 @@ begin
         and occupied.evaluator_key = invitation.evaluator_key
         and occupied.user_id <> auth.uid()
     )
-  on conflict (competition_id, user_id) do nothing;
+  on conflict (competition_id, user_id) do update
+  set role = excluded.role,
+      evaluator_key = excluded.evaluator_key,
+      display_name = excluded.display_name,
+      color = excluded.color,
+      active = true;
 
   get diagnostics claimed = row_count;
 
@@ -189,6 +194,46 @@ begin
     );
 
   return claimed;
+end;
+$$;
+
+create or replace function public.revoke_competition_member(
+  target_user_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_competition_id uuid;
+  competition_owner_id uuid;
+begin
+  select member.competition_id, competition.owner_id
+  into target_competition_id, competition_owner_id
+  from public.competition_members member
+  join public.competitions competition on competition.id = member.competition_id
+  where member.user_id = target_user_id
+    and member.active
+  limit 1;
+
+  if target_competition_id is null then
+    raise exception 'Evaluator not found';
+  end if;
+
+  if auth.uid() <> competition_owner_id then
+    raise exception 'Only the primary administrator can revoke access';
+  end if;
+
+  if target_user_id = competition_owner_id then
+    raise exception 'The primary administrator cannot be removed';
+  end if;
+
+  update public.competition_members
+  set active = false,
+      role = 'evaluator'
+  where competition_id = target_competition_id
+    and user_id = target_user_id;
 end;
 $$;
 
@@ -372,6 +417,7 @@ with check (
 );
 
 grant execute on function public.claim_competition_invitations() to authenticated;
+grant execute on function public.revoke_competition_member(uuid) to authenticated;
 grant execute on function public.set_member_admin(uuid, boolean) to authenticated;
 
 do $$

@@ -344,6 +344,17 @@ body.auth-locked {
   background: #f7f8f9;
 }
 
+.access-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.danger-button {
+  border-color: #d58d86;
+  color: var(--danger);
+}
+
 .setup-summary {
   margin-top: 16px;
 }

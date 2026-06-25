@@ -62,6 +62,8 @@ importar archivos JSON.
 - El administrador principal puede nombrar un único co-administrador adicional.
 - El co-administrador puede corregir cargas y configuración, pero no puede nombrar
   otro co-administrador.
+- El administrador principal puede revocar evaluadores activos o cancelar
+  autorizaciones pendientes. Las cargas históricas se conservan.
 
 ### Resguardo de información
 
