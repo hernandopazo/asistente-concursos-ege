@@ -138,6 +138,7 @@
       client
         .from("competition_members")
         .select("*")
+        .eq("user_id", session.user.id)
         .eq("active", true),
       10000,
       "No se pudieron cargar los concursos. Compruebe la conexión y recargue."
@@ -321,11 +322,18 @@
   }
 
   function updateSessionUi() {
-    const displayName = currentMember?.display_name
+    const assignedEvaluator = state?.oposicion?.evaluadores?.find(
+      (evaluador) => evaluador.id === currentMember?.evaluator_key
+    );
+    const displayName = assignedEvaluator?.nombre
+      || currentMember?.display_name
       || session?.user?.user_metadata?.display_name
       || session?.user?.email
       || "";
     document.querySelector("#collaboration-user").textContent = displayName;
+    document.querySelector("#collaboration-color").style.backgroundColor = assignedEvaluator?.color
+      || currentMember?.color
+      || "#2d6f8f";
     document.querySelector("#collaboration-role").textContent = currentMember
       ? `${currentMember.role === "admin" ? "Administrador" : "Evaluador"} · ${session.user.email}`
       : session?.user?.email || "";
