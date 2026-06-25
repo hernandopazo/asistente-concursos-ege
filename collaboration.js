@@ -30,6 +30,7 @@
   let saving = false;
   let loadedUserId = null;
   let sessionSequence = 0;
+  let occupiedEvaluatorKeys = new Map();
 
   function withTimeout(promise, milliseconds, message) {
     return Promise.race([
@@ -47,6 +48,9 @@
 
   function authErrorMessage(error) {
     const message = error?.message || "";
+    if (/competition_members_competition_id_evaluator_key_key/i.test(message)) {
+      return "Ese lugar de la terna ya está ocupado. Seleccione otro evaluador desde la cuenta administradora.";
+    }
     const retryMatch = message.match(/after (\d+) seconds?/i);
     if (retryMatch) {
       return `Espere ${retryMatch[1]} segundos antes de volver a intentarlo. Revise si ya recibió el correo de confirmación.`;
@@ -195,6 +199,7 @@
     else {
       currentCompetition = null;
       currentMember = null;
+      occupiedEvaluatorKeys = new Map();
       accessPanel.hidden = true;
       setSyncStatus("Cree un concurso o acepte una invitación");
       updateSessionUi();
@@ -335,9 +340,15 @@
     const evaluadores = state?.oposicion?.evaluadores || [];
     select.innerHTML = evaluadores.length
       ? evaluadores.map((evaluador) => `
-          <option value="${evaluador.id}">${escapeAttribute(evaluador.nombre)}</option>
+          <option value="${evaluador.id}" ${occupiedEvaluatorKeys.has(evaluador.id) ? "disabled" : ""}>
+            ${escapeAttribute(evaluador.nombre)}${occupiedEvaluatorKeys.has(evaluador.id)
+              ? ` — ocupado por ${escapeAttribute(occupiedEvaluatorKeys.get(evaluador.id))}`
+              : ""}
+          </option>
         `).join("")
       : `<option value="">No hay evaluadores configurados</option>`;
+    const firstAvailable = evaluadores.find((evaluador) => !occupiedEvaluatorKeys.has(evaluador.id));
+    select.value = firstAvailable?.id || "";
   }
 
   async function createCompetition() {
@@ -372,17 +383,31 @@
       setStatus(document.querySelector("#access-status"), "Complete email, nombre e identidad.", true);
       return;
     }
-    const { data: occupiedMember, error: occupiedError } = await client
-      .from("competition_members")
-      .select("display_name")
-      .eq("competition_id", currentCompetition.id)
-      .eq("evaluator_key", evaluatorKey)
-      .maybeSingle();
+    const [{ data: occupiedMember, error: occupiedError }, { data: occupiedInvitation, error: invitationError }] = await Promise.all([
+      client
+        .from("competition_members")
+        .select("display_name")
+        .eq("competition_id", currentCompetition.id)
+        .eq("evaluator_key", evaluatorKey)
+        .maybeSingle(),
+      client
+        .from("competition_invitations")
+        .select("display_name,email")
+        .eq("competition_id", currentCompetition.id)
+        .eq("evaluator_key", evaluatorKey)
+        .is("accepted_at", null)
+        .limit(1)
+        .maybeSingle()
+    ]);
     if (occupiedError) throw occupiedError;
-    if (occupiedMember) {
+    if (invitationError) throw invitationError;
+    if (occupiedMember || occupiedInvitation) {
+      const occupiedBy = occupiedMember?.display_name
+        || occupiedInvitation?.display_name
+        || occupiedInvitation?.email;
       setStatus(
         document.querySelector("#access-status"),
-        `Ese lugar ya está asignado a ${occupiedMember.display_name}.`,
+        `Ese lugar ya está asignado a ${occupiedBy}.`,
         true
       );
       return;
@@ -417,6 +442,21 @@
       client.from("competition_members").select("*").eq("competition_id", currentCompetition.id),
       client.from("competition_invitations").select("*").eq("competition_id", currentCompetition.id)
     ]);
+    occupiedEvaluatorKeys = new Map();
+    (members || []).forEach((member) => {
+      if (member.evaluator_key) {
+        occupiedEvaluatorKeys.set(member.evaluator_key, member.display_name || member.user_id);
+      }
+    });
+    (invitations || []).filter((invitation) => !invitation.accepted_at).forEach((invitation) => {
+      if (invitation.evaluator_key && !occupiedEvaluatorKeys.has(invitation.evaluator_key)) {
+        occupiedEvaluatorKeys.set(
+          invitation.evaluator_key,
+          invitation.display_name || invitation.email
+        );
+      }
+    });
+    fillEvaluatorOptions();
     const memberRows = (members || []).map((member) => `
       <div class="access-row">
         <span>${escapeAttribute(member.display_name || member.user_id)}</span>
@@ -496,6 +536,7 @@
       memberships = [];
       currentCompetition = null;
       currentMember = null;
+      occupiedEvaluatorKeys = new Map();
       suppressSave = true;
       authGate.hidden = false;
       toolbar.hidden = true;

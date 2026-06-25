@@ -165,6 +165,13 @@ begin
   from public.competition_invitations invitation
   where lower(invitation.email) = lower(auth.jwt() ->> 'email')
     and invitation.accepted_at is null
+    and not exists (
+      select 1
+      from public.competition_members occupied
+      where occupied.competition_id = invitation.competition_id
+        and occupied.evaluator_key = invitation.evaluator_key
+        and occupied.user_id <> auth.uid()
+    )
   on conflict (competition_id, user_id) do nothing;
 
   get diagnostics claimed = row_count;
@@ -172,7 +179,14 @@ begin
   update public.competition_invitations
   set accepted_at = now()
   where lower(email) = lower(auth.jwt() ->> 'email')
-    and accepted_at is null;
+    and accepted_at is null
+    and exists (
+      select 1
+      from public.competition_members member
+      where member.competition_id = competition_invitations.competition_id
+        and member.user_id = auth.uid()
+        and member.evaluator_key is not distinct from competition_invitations.evaluator_key
+    );
 
   return claimed;
 end;
