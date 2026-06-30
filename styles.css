@@ -1157,6 +1157,15 @@ main {
   background: #ffffff;
 }
 
+.teaching-origin-score-table {
+  min-width: 1120px;
+}
+
+.teaching-origin-score-table tbody th {
+  width: 320px;
+  min-width: 320px;
+}
+
 .publication-score-table input {
   width: 100%;
   min-width: 0;

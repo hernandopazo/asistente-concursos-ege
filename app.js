@@ -1,5 +1,26 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 18;
+const DATA_VERSION = 19;
+
+const TEACHING_APPOINTMENT_ORIGINS = [
+  { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
+  { id: "ege_ecologia", nombre: "EGE Ecología", factor: 0.875 },
+  { id: "departamentos_biologia", nombre: "Departamentos de Biología", factor: 0.75 },
+  { id: "otros_departamentos_fcen", nombre: "Otros departamentos de FCEyN", factor: 0.625 }
+];
+
+const TEACHING_ORIGIN_ITEM_IDS = new Set([
+  "jtp_regular",
+  "jtp_interino",
+  "ay1_regular",
+  "ay1_interino"
+]);
+
+function teachingOriginScores(baseScore) {
+  return Object.fromEntries(TEACHING_APPOINTMENT_ORIGINS.map((origin) => [
+    origin.id,
+    baseScore * origin.factor
+  ]));
+}
 
 const PUBLICATION_AUTHOR_POSITIONS = [
   { id: "primero_ultimo", nombre: "Primero o último autor" },
@@ -88,10 +109,10 @@ const initialState = {
         maxSimple: 19.5,
         modo: "cantidad",
         subitems: [
-          { id: "jtp_regular", nombre: "JTP regular FCEyN por año", puntos: 2 },
-          { id: "jtp_interino", nombre: "JTP interino por año", puntos: 1.5 },
-          { id: "ay1_regular", nombre: "Ayudante de primera regular FCEyN por año", puntos: 1.2 },
-          { id: "ay1_interino", nombre: "Ayudante de primera interino FCEyN por año", puntos: 0.85 },
+          { id: "jtp_regular", nombre: "JTP regular por año", puntos: 2, puntajesOrigen: teachingOriginScores(2) },
+          { id: "jtp_interino", nombre: "JTP interino por año", puntos: 1.5, puntajesOrigen: teachingOriginScores(1.5) },
+          { id: "ay1_regular", nombre: "Ayudante de primera regular por año", puntos: 1.2, puntajesOrigen: teachingOriginScores(1.2) },
+          { id: "ay1_interino", nombre: "Ayudante de primera interino por año", puntos: 0.85, puntajesOrigen: teachingOriginScores(0.85) },
           { id: "ay2_regular", nombre: "Ayudante de segunda regular FCEyN por año", puntos: 0.5 },
           { id: "un_jtp", nombre: "Universidades nacionales: JTP por cargo y año", puntos: 1 },
           { id: "un_primera", nombre: "Universidades nacionales: primera por cargo y año", puntos: 0.6 },
@@ -551,6 +572,18 @@ function migrateState(savedState) {
       rubroCientificos.exclusiva = 33;
     }
   }
+  if ((savedState.dataVersion || 1) < 19) {
+    savedState.antecedentesDocentes ||= clone(initialState.antecedentesDocentes);
+    const savedCargo = savedState.antecedentesDocentes.tipos?.find((tipo) => tipo.id === "cargo");
+    const defaultCargo = initialState.antecedentesDocentes.tipos.find((tipo) => tipo.id === "cargo");
+    defaultCargo.subitems.filter((subitem) => TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)).forEach((defaultItem) => {
+      const savedItem = savedCargo?.subitems.find((subitem) => subitem.id === defaultItem.id);
+      if (!savedItem) return;
+      savedItem.nombre = defaultItem.nombre;
+      savedItem.puntos = defaultItem.puntos;
+      savedItem.puntajesOrigen = clone(defaultItem.puntajesOrigen);
+    });
+  }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
   savedState.contestStartDate ||= "";
@@ -561,6 +594,12 @@ function migrateState(savedState) {
   savedState.antecedentesDocentes.cargasEvaluadores ||= {};
   savedState.antecedentesDocentes.factorDege ??= initialState.antecedentesDocentes.factorDege;
   savedState.antecedentesDocentes.factorOtroDepto ??= initialState.antecedentesDocentes.factorOtroDepto;
+  const normalizedCargo = savedState.antecedentesDocentes.tipos?.find((tipo) => tipo.id === "cargo");
+  const defaultCargo = initialState.antecedentesDocentes.tipos.find((tipo) => tipo.id === "cargo");
+  defaultCargo.subitems.filter((subitem) => TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)).forEach((defaultItem) => {
+    const savedItem = normalizedCargo?.subitems.find((subitem) => subitem.id === defaultItem.id);
+    if (savedItem) savedItem.puntajesOrigen ||= clone(defaultItem.puntajesOrigen);
+  });
   savedState.antecedentesCientificos ||= clone(initialState.antecedentesCientificos);
   savedState.antecedentesCientificos.modalidad ||= "unica";
   savedState.antecedentesCientificos.participacion ||= {};
@@ -643,6 +682,13 @@ function seedDocentes(nextState = state) {
         return;
       }
       tipo.subitems.forEach((subitem) => {
+        if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
+          TEACHING_APPOINTMENT_ORIGINS.forEach((origin) => {
+            const fieldId = teachingOriginFieldId(subitem.id, origin.id);
+            if (carga.valores[fieldId] === undefined) carga.valores[fieldId] = "";
+          });
+          return;
+        }
         if (carga.valores[subitem.id] === undefined) carga.valores[subitem.id] = "";
       });
     });
@@ -954,30 +1000,57 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
   });
 }
 
-const DOCENTES_ITEMS_CON_FACTOR_EGE = new Set([
-  "jtp_regular",
-  "jtp_interino",
-  "ay1_regular",
-  "ay1_interino"
-]);
-
-function docentesItemFactor(subitem, postulanteId) {
-  if (!DOCENTES_ITEMS_CON_FACTOR_EGE.has(subitem.id)) return 1;
-  const postulante = state.postulantes.find((item) => item.id === postulanteId);
-  const factors = [];
-  if (postulante?.dege) factors.push(Number(state.antecedentesDocentes.factorDege ?? 1));
-  if (postulante?.otroDepto) factors.push(Number(state.antecedentesDocentes.factorOtroDepto ?? 1));
-  if (!factors.length) return 1;
-  return Math.max(0, Math.min(1, ...factors));
+function teachingOriginFieldId(subitemId, originId) {
+  return `${subitemId}__${originId}`;
 }
 
-function docentesItemFactorLabel(subitem, postulanteId) {
-  if (!DOCENTES_ITEMS_CON_FACTOR_EGE.has(subitem.id)) return "";
-  const postulante = state.postulantes.find((item) => item.id === postulanteId);
-  if (postulante?.dege && postulante?.otroDepto) return "factor DEGE/Otro Depto.";
-  if (postulante?.dege) return "factor DEGE";
-  if (postulante?.otroDepto) return "factor Otro Depto.";
-  return "";
+function teachingOriginPoint(subitem, originId) {
+  return Number(subitem.puntajesOrigen?.[originId] ?? subitem.puntos ?? 0);
+}
+
+function docentesSubitemRawScore(subitem, carga) {
+  if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
+    return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
+      sum
+        + Number(carga?.valores[teachingOriginFieldId(subitem.id, origin.id)] || 0)
+        * teachingOriginPoint(subitem, origin.id)
+    ), 0);
+  }
+  return Number(carga?.valores[subitem.id] || 0) * Number(subitem.puntos || 0);
+}
+
+function teachingOriginYears(subitem, postulanteId, cargas) {
+  const valores = cargas[postulanteId]?.valores || {};
+  return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
+    sum + Number(valores[teachingOriginFieldId(subitem.id, origin.id)] || 0)
+  ), 0);
+}
+
+function teachingOriginExplanation(subitem, postulanteId, cargas) {
+  const valores = cargas[postulanteId]?.valores || {};
+  const lines = TEACHING_APPOINTMENT_ORIGINS
+    .map((origin) => {
+      const years = Number(valores[teachingOriginFieldId(subitem.id, origin.id)] || 0);
+      const points = teachingOriginPoint(subitem, origin.id);
+      return years ? `${origin.nombre}: ${formatNumber(years)} años × ${formatNumber(points)} = ${formatNumber(years * points)}` : "";
+    })
+    .filter(Boolean);
+  return lines.length ? `${subitem.nombre}\n${lines.join("\n")}` : `${subitem.nombre}: sin años cargados.`;
+}
+
+function teachingOriginDifference(module, postulanteId, subitem) {
+  const differences = TEACHING_APPOINTMENT_ORIGINS
+    .map((origin) => ({
+      origin,
+      difference: antecedentDifference(module, postulanteId, teachingOriginFieldId(subitem.id, origin.id))
+    }))
+    .filter(({ difference }) => difference.differs);
+  return {
+    differs: differences.length > 0,
+    explanation: differences.map(({ origin, difference }) => (
+      `${origin.nombre}:\n${difference.explanation}`
+    )).join("\n\n")
+  };
 }
 
 function postulanteDepartamentoLabel(postulante) {
@@ -999,46 +1072,40 @@ function docentesTipoScore(tipo, postulanteId, cargas = state.antecedentesDocent
     return Math.min(Number(tipo.maxSimple || 0), Number(tramo?.puntos || 0));
   }
   const total = tipo.subitems.reduce((sum, subitem) => {
-    return sum
-      + Number(carga.valores[subitem.id] || 0)
-      * Number(subitem.puntos || 0)
-      * docentesItemFactor(subitem, postulanteId);
+    return sum + docentesSubitemRawScore(subitem, carga);
   }, 0);
   return Math.min(Number(tipo.maxSimple || 0), total);
 }
 
 function docentesTipoExplanation(tipo, postulanteId, cargas = state.antecedentesDocentes.cargas) {
   const carga = cargas[postulanteId];
-  const postulante = state.postulantes.find((item) => item.id === postulanteId);
-  const departmentLine = `Condición departamental: ${postulanteDepartamentoLabel(postulante)}.`;
   if (tipo.modo === "eadis") {
     const promedio = Number(carga?.valores[tipo.id] || 0);
     const tramo = [...tipo.subitems]
       .sort((a, b) => Number(b.min || 0) - Number(a.min || 0))
       .find((subitem) => promedio >= Number(subitem.min || 0));
     return promedio
-      ? `${departmentLine}\nPromedio EADIS: ${formatNumber(promedio, 2)}\nTramo: ${tramo?.nombre || "Sin puntaje"}\nPuntaje: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`
-      : `${departmentLine}\nSin promedio EADIS cargado.`;
+      ? `Promedio EADIS: ${formatNumber(promedio, 2)}\nTramo: ${tramo?.nombre || "Sin puntaje"}\nPuntaje: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`
+      : "Sin promedio EADIS cargado.";
   }
-  const lines = tipo.subitems
-    .filter((subitem) => Number(carga?.valores[subitem.id] || 0) !== 0)
-    .map((subitem) => {
-      const cantidad = Number(carga.valores[subitem.id] || 0);
-      const factor = docentesItemFactor(subitem, postulanteId);
-      const factorLabel = docentesItemFactorLabel(subitem, postulanteId);
-      const factorText = factorLabel ? ` × ${factorLabel} ${formatNumber(factor)}` : "";
-      return `${subitem.nombre}: ${formatNumber(cantidad, 2)} × ${formatNumber(subitem.puntos)}${factorText} = ${formatNumber(cantidad * Number(subitem.puntos || 0) * factor)}`;
-    });
+  const lines = tipo.subitems.flatMap((subitem) => {
+    if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
+      return teachingOriginYears(subitem, postulanteId, cargas)
+        ? [teachingOriginExplanation(subitem, postulanteId, cargas)]
+        : [];
+    }
+    const cantidad = Number(carga?.valores[subitem.id] || 0);
+    return cantidad
+      ? [`${subitem.nombre}: ${formatNumber(cantidad, 2)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`]
+      : [];
+  });
   const rawTotal = tipo.subitems.reduce((sum, subitem) => {
-    return sum
-      + Number(carga?.valores[subitem.id] || 0)
-      * Number(subitem.puntos || 0)
-      * docentesItemFactor(subitem, postulanteId);
+    return sum + docentesSubitemRawScore(subitem, carga);
   }, 0);
   const capNote = rawTotal > Number(tipo.maxSimple || 0)
     ? `\nSe aplica el tope interno de ${formatNumber(tipo.maxSimple)}.`
     : "";
-  return `${departmentLine}\n${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(rawTotal)}${capNote}\nSubtotal: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`;
+  return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(rawTotal)}${capNote}\nSubtotal: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`;
 }
 
 function docentesInternalMax() {
@@ -1928,40 +1995,68 @@ function renderEvaluadores() {
   });
 }
 
+function teachingOriginConfigTable(tipo, typeIndex) {
+  const rows = tipo.subitems
+    .filter((subitem) => TEACHING_ORIGIN_ITEM_IDS.has(subitem.id))
+    .map((subitem) => {
+      const itemIndex = tipo.subitems.indexOf(subitem);
+      return `
+        <tr>
+          <th>
+            <input type="text" value="${escapeAttribute(subitem.nombre)}" data-doc-type="${typeIndex}" data-doc-item="${itemIndex}" data-doc-field="nombre" aria-label="Nombre del cargo docente">
+          </th>
+          ${TEACHING_APPOINTMENT_ORIGINS.map((origin) => {
+            const points = teachingOriginPoint(subitem, origin.id);
+            return `
+              <td>
+                <input type="number" min="0" step="0.01" value="${editableNumber(points, 3)}" data-doc-origin-type="${typeIndex}" data-doc-origin-item="${itemIndex}" data-doc-origin-id="${origin.id}" aria-label="Puntaje de ${escapeAttribute(subitem.nombre)} en ${escapeAttribute(origin.nombre)}">
+                <small>
+                  S <output data-doc-origin-simple="${typeIndex}:${itemIndex}:${origin.id}">${formatNumber(docentesRelativizedValue(points, getDocentesMaxSimple()))}</output>
+                  · E <output data-doc-origin-exclusive="${typeIndex}:${itemIndex}:${origin.id}">${formatNumber(docentesRelativizedValue(points, getDocentesMaxExclusiva()))}</output>
+                </small>
+              </td>
+            `;
+          }).join("")}
+        </tr>
+      `;
+    }).join("");
+  return `
+    <div class="publication-score-table-shell">
+      <table class="publication-score-table teaching-origin-score-table">
+        <thead>
+          <tr>
+            <th>Cargo y designación</th>
+            ${TEACHING_APPOINTMENT_ORIGINS.map((origin) => `<th>${origin.nombre}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderDocentesConfig() {
   const container = document.querySelector("#docentes-types-list");
-  const factorInputs = [
-    ["#docentes-factor-dege", "factorDege"],
-    ["#docentes-factor-otro-depto", "factorOtroDepto"]
-  ];
-  factorInputs.forEach(([selector, field]) => {
-    const input = document.querySelector(selector);
-    input.value = editableNumber(state.antecedentesDocentes[field], 2);
-    input.oninput = (event) => {
-      state.antecedentesDocentes[field] = Math.max(0, Math.min(1, Number(event.target.value)));
-      renderDocentesMatrix();
-      renderResultados();
-      renderMerit();
-      saveState();
-    };
-  });
   container.innerHTML = "";
   state.antecedentesDocentes.tipos.forEach((tipo, typeIndex) => {
     const section = document.createElement("section");
     section.className = `teaching-type${tipo.modo === "eadis" ? " is-eadis" : ""}`;
-    const subitems = tipo.subitems.map((subitem, itemIndex) => `
+    const subitems = tipo.subitems.map((subitem, itemIndex) => ({ subitem, itemIndex }))
+      .filter(({ subitem }) => !TEACHING_ORIGIN_ITEM_IDS.has(subitem.id))
+      .map(({ subitem, itemIndex }) => `
       <div class="teaching-subitem-row">
-        <input type="text" value="${subitem.nombre}" data-doc-type="${typeIndex}" data-doc-item="${itemIndex}" data-doc-field="nombre" aria-label="Nombre del subítem">
+        <input type="text" value="${escapeAttribute(subitem.nombre)}" data-doc-type="${typeIndex}" data-doc-item="${itemIndex}" data-doc-field="nombre" aria-label="Nombre del subítem">
         <input type="number" min="0" step="0.01" value="${subitem.puntos}" data-doc-type="${typeIndex}" data-doc-item="${itemIndex}" data-doc-field="puntos" aria-label="Puntaje Simple">
         <output class="teaching-derived-value" data-doc-item-simple="${typeIndex}:${itemIndex}" ${calculationAttribute(`${formatNumber(subitem.puntos)} × ${formatNumber(getDocentesMaxSimple())} ÷ ${formatNumber(docentesInternalMax())} = ${formatNumber(docentesRelativizedValue(subitem.puntos, getDocentesMaxSimple()))}`)}>${formatNumber(docentesRelativizedValue(subitem.puntos, getDocentesMaxSimple()))}</output>
         <output class="teaching-derived-value" data-doc-item-exclusive="${typeIndex}:${itemIndex}" ${calculationAttribute(`${formatNumber(subitem.puntos)} × ${formatNumber(getDocentesMaxExclusiva())} ÷ ${formatNumber(docentesInternalMax())} = ${formatNumber(docentesRelativizedValue(subitem.puntos, getDocentesMaxExclusiva()))}`)}>${formatNumber(docentesRelativizedValue(subitem.puntos, getDocentesMaxExclusiva()))}</output>
       </div>
     `).join("");
+    const originTable = tipo.id === "cargo" ? teachingOriginConfigTable(tipo, typeIndex) : "";
     section.innerHTML = `
       <div class="teaching-type-header">
         <label>
           Tipo de antecedente
-          <input type="text" value="${tipo.nombre}" data-doc-type="${typeIndex}" data-doc-type-field="nombre">
+          <input type="text" value="${escapeAttribute(tipo.nombre)}" data-doc-type="${typeIndex}" data-doc-type-field="nombre">
         </label>
         <label>
           Tope interno
@@ -1976,6 +2071,7 @@ function renderDocentesConfig() {
           <output class="teaching-derived-value" data-doc-type-exclusive="${typeIndex}" ${calculationAttribute(`${formatNumber(tipo.maxSimple)} × ${formatNumber(getDocentesMaxExclusiva())} ÷ ${formatNumber(docentesInternalMax())} = ${formatNumber(docentesRelativizedValue(tipo.maxSimple, getDocentesMaxExclusiva()))}`)}>${formatNumber(docentesRelativizedValue(tipo.maxSimple, getDocentesMaxExclusiva()))}</output>
         </label>
       </div>
+      ${originTable}
       <div class="teaching-subitems-heading">
         <span>${tipo.modo === "eadis" ? "Tramo de promedio EADIS" : "Subítem"}</span>
         <span>Puntaje interno</span>
@@ -2021,6 +2117,21 @@ function renderDocentesConfig() {
       renderMerit();
     });
   });
+  container.querySelectorAll("[data-doc-origin-id]").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const tipo = state.antecedentesDocentes.tipos[Number(event.target.dataset.docOriginType)];
+      const subitem = tipo.subitems[Number(event.target.dataset.docOriginItem)];
+      subitem.puntajesOrigen ||= {};
+      subitem.puntajesOrigen[event.target.dataset.docOriginId] = Number(event.target.value);
+      updateDocentesConfigDerived();
+      saveState();
+    });
+    input.addEventListener("change", () => {
+      renderDocentesMatrix();
+      renderResultados();
+      renderMerit();
+    });
+  });
   container.querySelectorAll("[data-add-doc-item]").forEach((button) => {
     button.addEventListener("click", () => {
       const tipo = state.antecedentesDocentes.tipos[Number(button.dataset.addDocItem)];
@@ -2050,6 +2161,22 @@ function updateDocentesConfigDerived() {
       updateCalculation(typeExclusive, `${formatNumber(tipo.maxSimple)} × ${formatNumber(getDocentesMaxExclusiva())} ÷ ${formatNumber(docentesInternalMax())} = ${typeExclusive.textContent}`);
     }
     tipo.subitems.forEach((subitem, itemIndex) => {
+      if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
+        TEACHING_APPOINTMENT_ORIGINS.forEach((origin) => {
+          const points = teachingOriginPoint(subitem, origin.id);
+          const originSimple = document.querySelector(`[data-doc-origin-simple="${typeIndex}:${itemIndex}:${origin.id}"]`);
+          const originExclusive = document.querySelector(`[data-doc-origin-exclusive="${typeIndex}:${itemIndex}:${origin.id}"]`);
+          if (originSimple) {
+            originSimple.textContent = formatNumber(docentesRelativizedValue(points, getDocentesMaxSimple()));
+            updateCalculation(originSimple, `${formatNumber(points)} × ${formatNumber(getDocentesMaxSimple())} ÷ ${formatNumber(docentesInternalMax())} = ${originSimple.textContent}`);
+          }
+          if (originExclusive) {
+            originExclusive.textContent = formatNumber(docentesRelativizedValue(points, getDocentesMaxExclusiva()));
+            updateCalculation(originExclusive, `${formatNumber(points)} × ${formatNumber(getDocentesMaxExclusiva())} ÷ ${formatNumber(docentesInternalMax())} = ${originExclusive.textContent}`);
+          }
+        });
+        return;
+      }
       const itemSimple = document.querySelector(`[data-doc-item-simple="${typeIndex}:${itemIndex}"]`);
       const itemExclusive = document.querySelector(`[data-doc-item-exclusive="${typeIndex}:${itemIndex}"]`);
       if (itemSimple) {
@@ -2095,7 +2222,7 @@ function renderDocentesConfigSummary() {
   summary.innerHTML = `
     <span>
       Escala interna: ${internalBreakdown} = ${formatNumber(internalMax)}
-      <small>Suma de los topes. Factor DEGE: ${formatNumber(state.antecedentesDocentes.factorDege)}. Factor Otro Depto.: ${formatNumber(state.antecedentesDocentes.factorOtroDepto)}.</small>
+      <small>Suma de los topes. JTP y Ayudante de primera se valoran según el ámbito donde se ejerció cada cargo.</small>
     </span>
     <span>
       Simple acordado: ${formatNumber(agreedSimple)}
@@ -2109,12 +2236,127 @@ function renderDocentesConfigSummary() {
   updateCalculation(
     summary,
     `Escala interna: ${internalBreakdown} = ${formatNumber(internalMax)}\n`
-      + `Factor DEGE: ${formatNumber(state.antecedentesDocentes.factorDege)}\n`
-      + `Factor Otro Depto.: ${formatNumber(state.antecedentesDocentes.factorOtroDepto)}\n`
       + `Simple: ${formatNumber(agreedSimple)} ÷ ${formatNumber(internalMax)} = ${formatNumber(simpleFactor, 3)}\n`
       + `Exclusiva: ${formatNumber(agreedExclusive)} ÷ ${formatNumber(internalMax)} = ${formatNumber(exclusiveFactor, 3)}`
   );
   summary.tabIndex = 0;
+}
+
+function teachingOriginCellContent(subitem, postulante, cargas) {
+  const years = teachingOriginYears(subitem, postulante.id, cargas);
+  const score = docentesSubitemRawScore(subitem, cargas[postulante.id]);
+  return years
+    ? `
+        <span class="publication-cell-count">${formatNumber(years, Number.isInteger(years) ? 0 : 2)} años</span>
+        <span class="publication-cell-scores">S ${postulante.simple ? formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple())) : "—"} · E ${postulante.exclusiva ? formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva())) : "—"}</span>
+      `
+    : `<span class="publication-cell-empty" aria-hidden="true"></span>`;
+}
+
+function teachingOriginCellExplanation(subitem, postulanteId, cargas) {
+  const score = docentesSubitemRawScore(subitem, cargas[postulanteId]);
+  return `${teachingOriginExplanation(subitem, postulanteId, cargas)}\nSubtotal interno: ${formatNumber(score)}\nSimple: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))}\nExclusiva: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}`;
+}
+
+function teachingOriginMatrixRow(subitem, postulantes, cargas, module) {
+  return `
+    <tr>
+      <th class="matrix-label">${escapeAttribute(subitem.nombre)}<span>Años según ámbito del cargo</span></th>
+      ${postulantes.map((postulante) => {
+        const difference = activeDocentesCargaId === "consolidada" && module.modalidad === "evaluadores"
+          ? teachingOriginDifference(module, postulante.id, subitem)
+          : { differs: false, explanation: "" };
+        const explanation = difference.differs
+          ? `${teachingOriginCellExplanation(subitem, postulante.id, cargas)}\n\nDiferencia entre evaluadores:\n${difference.explanation}`
+          : teachingOriginCellExplanation(subitem, postulante.id, cargas);
+        return `
+          <td class="publication-compact-cell${difference.differs ? " has-difference" : ""}">
+            <button type="button" class="publication-cell-button" data-open-teaching-origin="${subitem.id}:${postulante.id}" aria-label="Editar ${escapeAttribute(subitem.nombre)} de ${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}" ${calculationAttribute(explanation)}>
+              ${teachingOriginCellContent(subitem, postulante, cargas)}
+            </button>
+          </td>
+        `;
+      }).join("")}
+    </tr>
+  `;
+}
+
+function updateTeachingOriginCell(subitem, postulante, cargas) {
+  const button = document.querySelector(`[data-open-teaching-origin="${subitem.id}:${postulante.id}"]`);
+  if (!button) return;
+  button.innerHTML = teachingOriginCellContent(subitem, postulante, cargas);
+  updateCalculation(button, teachingOriginCellExplanation(subitem, postulante.id, cargas));
+}
+
+function openTeachingOriginEditor(subitem, postulante, cargas, module) {
+  const dialog = document.querySelector("#teaching-origin-editor");
+  if (!dialog) return;
+  dialog.innerHTML = `
+    <div class="publication-editor-heading">
+      <div>
+        <span>${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}</span>
+        <h3>${escapeAttribute(subitem.nombre)}</h3>
+      </div>
+      <button class="icon-button publication-editor-close" type="button" data-close-teaching-origin-editor aria-label="Cerrar">×</button>
+    </div>
+    <div class="publication-editor-columns" aria-hidden="true">
+      <span>Ámbito donde ejerció el cargo</span>
+      <span>Años</span>
+      <span>Puntaje por año</span>
+    </div>
+    <div class="publication-editor-fields">
+      ${TEACHING_APPOINTMENT_ORIGINS.map((origin) => {
+        const fieldId = teachingOriginFieldId(subitem.id, origin.id);
+        const value = cargas[postulante.id].valores[fieldId] ?? "";
+        const points = teachingOriginPoint(subitem, origin.id);
+        return `
+          <label>
+            <span>${origin.nombre}</span>
+            <input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-teaching-origin-value="${fieldId}" aria-label="Años en ${escapeAttribute(origin.nombre)}">
+            <small>${formatNumber(points)} interno · S ${formatNumber(docentesRelativizedValue(points, getDocentesMaxSimple()))} · E ${formatNumber(docentesRelativizedValue(points, getDocentesMaxExclusiva()))}</small>
+          </label>
+        `;
+      }).join("")}
+    </div>
+    <div class="publication-editor-summary" data-teaching-origin-summary></div>
+  `;
+
+  const refreshSummary = () => {
+    const years = teachingOriginYears(subitem, postulante.id, cargas);
+    const score = docentesSubitemRawScore(subitem, cargas[postulante.id]);
+    dialog.querySelector("[data-teaching-origin-summary]").innerHTML = `
+      <span>${formatNumber(years, Number.isInteger(years) ? 0 : 2)} ${years === 1 ? "año" : "años"}</span>
+      <strong>Interno ${formatNumber(score)} · Simple ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))} · Exclusiva ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}</strong>
+    `;
+  };
+
+  dialog.querySelectorAll("[data-teaching-origin-value]").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const fieldId = event.target.dataset.teachingOriginValue;
+      cargas[postulante.id].valores[fieldId] = event.target.value;
+      if (activeDocentesCargaId !== "consolidada") {
+        syncConsolidatedAntecedentField(module, postulante.id, fieldId);
+      }
+      refreshSummary();
+      updateTeachingOriginCell(subitem, postulante, cargas);
+      updateDocentesCandidate(postulante.id, cargas);
+      renderResultados();
+      renderMerit();
+      saveState();
+    });
+  });
+  dialog.querySelector("[data-close-teaching-origin-editor]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("close", () => {
+    renderDocentesMatrix();
+    window.collaboration?.applyPermissions?.();
+  }, { once: true });
+  refreshSummary();
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  window.collaboration?.applyPermissions?.();
 }
 
 function renderDocentesMatrix() {
@@ -2160,11 +2402,13 @@ function renderDocentesMatrix() {
           }).join("")}
         </tr>
       `
-      : tipo.subitems.map((subitem) => `
+      : tipo.subitems.map((subitem) => TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)
+        ? teachingOriginMatrixRow(subitem, state.postulantes, cargas, module)
+        : `
         <tr>
           <th class="matrix-label">
             ${subitem.nombre}
-            <span>${formatNumber(subitem.puntos)} puntos por unidad${DOCENTES_ITEMS_CON_FACTOR_EGE.has(subitem.id) ? ` · DEGE ${formatNumber(state.antecedentesDocentes.factorDege)} · Otro Depto. ${formatNumber(state.antecedentesDocentes.factorOtroDepto)}` : ""}</span>
+            <span>${formatNumber(subitem.puntos)} puntos por unidad</span>
           </th>
           ${state.postulantes.map((postulante) => {
             const value = cargas[postulante.id].valores[subitem.id] ?? "";
@@ -2241,8 +2485,21 @@ function renderDocentesMatrix() {
           </tbody>
         </table>
       </div>
+      <dialog id="teaching-origin-editor" class="publication-editor teaching-origin-editor"></dialog>
     </div>
   `;
+
+  const cargoType = module.tipos.find((tipo) => tipo.id === "cargo");
+  if (cargoType) {
+    container.querySelectorAll("[data-open-teaching-origin]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const [subitemId, postulanteId] = button.dataset.openTeachingOrigin.split(":");
+        const subitem = cargoType.subitems.find((item) => item.id === subitemId);
+        const postulante = state.postulantes.find((item) => item.id === postulanteId);
+        if (subitem && postulante) openTeachingOriginEditor(subitem, postulante, cargas, module);
+      });
+    });
+  }
 
   container.querySelectorAll("[data-doc-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -2263,29 +2520,30 @@ function renderDocentesMatrix() {
   });
 }
 
-function updateDocentesCandidate(postulanteId) {
+function updateDocentesCandidate(postulanteId, cargas = state.antecedentesDocentes.cargas) {
   state.antecedentesDocentes.tipos.forEach((tipo) => {
     const subtotal = document.querySelector(`[data-doc-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
-      subtotal.textContent = formatNumber(docentesTipoScore(tipo, postulanteId));
-      updateCalculation(subtotal, docentesTipoExplanation(tipo, postulanteId));
+      subtotal.textContent = formatNumber(docentesTipoScore(tipo, postulanteId, cargas));
+      updateCalculation(subtotal, docentesTipoExplanation(tipo, postulanteId, cargas));
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
   const internal = document.querySelector(`[data-doc-internal="${postulanteId}"]`);
   const simple = document.querySelector(`[data-doc-simple="${postulanteId}"]`);
   const exclusive = document.querySelector(`[data-doc-exclusive="${postulanteId}"]`);
+  const internalScore = docentesInternalScore(postulanteId, cargas);
   if (internal) {
-    internal.textContent = formatNumber(docentesInternalScore(postulanteId));
-    updateCalculation(internal, docentesInternalExplanation(postulanteId));
+    internal.textContent = formatNumber(internalScore);
+    updateCalculation(internal, docentesInternalExplanation(postulanteId, cargas));
   }
   if (simple) {
-    simple.textContent = postulante.simple ? formatNumber(docentesSimpleScore(postulanteId)) : "—";
-    updateCalculation(simple, docentesRelativizedExplanation(postulanteId, getDocentesMaxSimple(), "Simple"));
+    simple.textContent = postulante.simple ? formatNumber(docentesRelativizedValue(internalScore, getDocentesMaxSimple())) : "—";
+    updateCalculation(simple, docentesRelativizedExplanationFromCargas(postulanteId, getDocentesMaxSimple(), "Simple", cargas));
   }
   if (exclusive) {
-    exclusive.textContent = postulante.exclusiva ? formatNumber(docentesExclusiveScore(postulanteId)) : "—";
-    updateCalculation(exclusive, docentesRelativizedExplanation(postulanteId, getDocentesMaxExclusiva(), "Exclusiva"));
+    exclusive.textContent = postulante.exclusiva ? formatNumber(docentesRelativizedValue(internalScore, getDocentesMaxExclusiva())) : "—";
+    updateCalculation(exclusive, docentesRelativizedExplanationFromCargas(postulanteId, getDocentesMaxExclusiva(), "Exclusiva", cargas));
   }
 }
 
@@ -4244,7 +4502,7 @@ document.addEventListener("focusout", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.type !== "number" || event.target.value === "") return;
   const usesTwoDecimals = event.target.matches(
-    "[data-cien-type-field], [data-cien-field], [data-cien-value], [data-ext-type-field], [data-ext-field], [data-ext-value], [data-prof-type-field], [data-prof-field], [data-prof-value], [data-otros-type-field], [data-otros-field], [data-otros-value], #otros-total-interno, #docentes-factor-dege, #docentes-factor-otro-depto"
+    "[data-cien-type-field], [data-cien-field], [data-cien-value], [data-teaching-origin-value], [data-ext-type-field], [data-ext-field], [data-ext-value], [data-prof-type-field], [data-prof-field], [data-prof-value], [data-otros-type-field], [data-otros-field], [data-otros-value], #otros-total-interno"
   );
   const rounded = editableNumber(event.target.value, usesTwoDecimals ? 2 : 3);
   if (event.target.value === rounded) return;
