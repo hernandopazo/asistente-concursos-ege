@@ -1235,6 +1235,11 @@ main {
   white-space: nowrap;
 }
 
+.publication-cell-scores.is-saturated {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .publication-editor {
   width: min(660px, calc(100vw - 28px));
   max-height: min(720px, calc(100vh - 28px));

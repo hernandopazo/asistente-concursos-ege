@@ -2255,20 +2255,40 @@ function renderDocentesConfigSummary() {
   summary.tabIndex = 0;
 }
 
+function teachingOriginSaturation(subitem, postulante, cargas) {
+  const cargoType = state.antecedentesDocentes.tipos.find((tipo) => tipo.id === "cargo");
+  const score = docentesSubitemRawScore(subitem, cargas[postulante.id]);
+  const baseCap = Number(cargoType?.maxSimple || 0);
+  const simple = docentesRelativizedValue(score, getDocentesMaxSimple());
+  const exclusive = docentesRelativizedValue(score, getDocentesMaxExclusiva());
+  const simpleCap = docentesRelativizedValue(baseCap, getDocentesMaxSimple());
+  const exclusiveCap = docentesRelativizedValue(baseCap, getDocentesMaxExclusiva());
+  const simpleSaturated = Boolean(postulante.simple && simpleCap > 0 && simple >= simpleCap);
+  const exclusiveSaturated = Boolean(postulante.exclusiva && exclusiveCap > 0 && exclusive >= exclusiveCap);
+  return {
+    any: simpleSaturated || exclusiveSaturated,
+    cargos: [simpleSaturated ? "Simple" : "", exclusiveSaturated ? "Exclusiva" : ""].filter(Boolean)
+  };
+}
+
 function teachingOriginCellContent(subitem, postulante, cargas) {
   const years = teachingOriginYears(subitem, postulante.id, cargas);
   const score = docentesSubitemRawScore(subitem, cargas[postulante.id]);
+  const saturation = teachingOriginSaturation(subitem, postulante, cargas);
   return years
     ? `
         <span class="publication-cell-count">${formatNumber(years, Number.isInteger(years) ? 0 : 2)} años</span>
-        <span class="publication-cell-scores">S ${postulante.simple ? formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple())) : "—"} · E ${postulante.exclusiva ? formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva())) : "—"}</span>
+        <span class="publication-cell-scores${saturation.any ? " is-saturated" : ""}">${saturation.any ? `<span class="visually-hidden">Tope alcanzado en ${saturation.cargos.join(" y ")}. </span>` : ""}S ${postulante.simple ? formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple())) : "—"} · E ${postulante.exclusiva ? formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva())) : "—"}</span>
       `
     : `<span class="publication-cell-empty" aria-hidden="true"></span>`;
 }
 
 function teachingOriginCellExplanation(subitem, postulanteId, cargas) {
+  const postulante = state.postulantes.find((item) => item.id === postulanteId);
   const score = docentesSubitemRawScore(subitem, cargas[postulanteId]);
-  return `${teachingOriginExplanation(subitem, postulanteId, cargas)}\nSubtotal base: ${formatNumber(score)}\nSimple: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))}\nExclusiva: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}`;
+  const saturation = teachingOriginSaturation(subitem, postulante, cargas);
+  const saturationNote = saturation.any ? `\nTope alcanzado en: ${saturation.cargos.join(" y ")}.` : "";
+  return `${teachingOriginExplanation(subitem, postulanteId, cargas)}\nSubtotal base: ${formatNumber(score)}\nSimple: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))}\nExclusiva: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}${saturationNote}`;
 }
 
 function teachingOriginMatrixRow(subitem, postulantes, cargas, module) {
