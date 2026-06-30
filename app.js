@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 19;
+const DATA_VERSION = 20;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -111,8 +111,8 @@ const initialState = {
         subitems: [
           { id: "jtp_regular", nombre: "JTP regular por año", puntos: 2, puntajesOrigen: teachingOriginScores(2) },
           { id: "jtp_interino", nombre: "JTP interino por año", puntos: 1.5, puntajesOrigen: teachingOriginScores(1.5) },
-          { id: "ay1_regular", nombre: "Ayudante de primera regular por año", puntos: 1.2, puntajesOrigen: teachingOriginScores(1.2) },
-          { id: "ay1_interino", nombre: "Ayudante de primera interino por año", puntos: 0.85, puntajesOrigen: teachingOriginScores(0.85) },
+          { id: "ay1_regular", nombre: "Ayte. 1ra regular por año", puntos: 1.2, puntajesOrigen: teachingOriginScores(1.2) },
+          { id: "ay1_interino", nombre: "Ayte. 1ra interino por año", puntos: 0.85, puntajesOrigen: teachingOriginScores(0.85) },
           { id: "ay2_regular", nombre: "Ayudante de segunda regular FCEyN por año", puntos: 0.5 },
           { id: "un_jtp", nombre: "Universidades nacionales: JTP por cargo y año", puntos: 1 },
           { id: "un_primera", nombre: "Universidades nacionales: primera por cargo y año", puntos: 0.6 },
@@ -584,6 +584,14 @@ function migrateState(savedState) {
       savedItem.puntajesOrigen = clone(defaultItem.puntajesOrigen);
     });
   }
+  if ((savedState.dataVersion || 1) < 20) {
+    const savedCargo = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
+    const defaultCargo = initialState.antecedentesDocentes.tipos.find((tipo) => tipo.id === "cargo");
+    defaultCargo.subitems.filter((subitem) => TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)).forEach((defaultItem) => {
+      const savedItem = savedCargo?.subitems.find((subitem) => subitem.id === defaultItem.id);
+      if (savedItem) savedItem.nombre = defaultItem.nombre;
+    });
+  }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
   savedState.contestStartDate ||= "";
@@ -1008,11 +1016,16 @@ function teachingOriginPoint(subitem, originId) {
   return Number(subitem.puntajesOrigen?.[originId] ?? subitem.puntos ?? 0);
 }
 
+function naturalYears(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
+}
+
 function docentesSubitemRawScore(subitem, carga) {
   if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
     return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
       sum
-        + Number(carga?.valores[teachingOriginFieldId(subitem.id, origin.id)] || 0)
+        + naturalYears(carga?.valores[teachingOriginFieldId(subitem.id, origin.id)])
         * teachingOriginPoint(subitem, origin.id)
     ), 0);
   }
@@ -1022,7 +1035,7 @@ function docentesSubitemRawScore(subitem, carga) {
 function teachingOriginYears(subitem, postulanteId, cargas) {
   const valores = cargas[postulanteId]?.valores || {};
   return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
-    sum + Number(valores[teachingOriginFieldId(subitem.id, origin.id)] || 0)
+    sum + naturalYears(valores[teachingOriginFieldId(subitem.id, origin.id)])
   ), 0);
 }
 
@@ -1030,7 +1043,7 @@ function teachingOriginExplanation(subitem, postulanteId, cargas) {
   const valores = cargas[postulanteId]?.valores || {};
   const lines = TEACHING_APPOINTMENT_ORIGINS
     .map((origin) => {
-      const years = Number(valores[teachingOriginFieldId(subitem.id, origin.id)] || 0);
+      const years = naturalYears(valores[teachingOriginFieldId(subitem.id, origin.id)]);
       const points = teachingOriginPoint(subitem, origin.id);
       return years ? `${origin.nombre}: ${formatNumber(years)} años × ${formatNumber(points)} = ${formatNumber(years * points)}` : "";
     })
@@ -1103,7 +1116,7 @@ function docentesTipoExplanation(tipo, postulanteId, cargas = state.antecedentes
     return sum + docentesSubitemRawScore(subitem, carga);
   }, 0);
   const capNote = rawTotal > Number(tipo.maxSimple || 0)
-    ? `\nSe aplica el tope interno de ${formatNumber(tipo.maxSimple)}.`
+    ? `\nSe aplica el tope base de ${formatNumber(tipo.maxSimple)}.`
     : "";
   return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(rawTotal)}${capNote}\nSubtotal: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`;
 }
@@ -1122,7 +1135,7 @@ function docentesInternalExplanation(postulanteId, cargas = state.antecedentesDo
   const lines = state.antecedentesDocentes.tipos.map((tipo) => {
     return `${tipo.nombre}: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`;
   });
-  return `${lines.join("\n")}\nTotal interno: ${formatNumber(docentesInternalScore(postulanteId, cargas))} sobre ${formatNumber(docentesInternalMax())}`;
+  return `${lines.join("\n")}\nPuntaje base total: ${formatNumber(docentesInternalScore(postulanteId, cargas))} sobre ${formatNumber(docentesInternalMax())}`;
 }
 
 function docentesSimpleScore(postulanteId) {
@@ -2059,7 +2072,7 @@ function renderDocentesConfig() {
           <input type="text" value="${escapeAttribute(tipo.nombre)}" data-doc-type="${typeIndex}" data-doc-type-field="nombre">
         </label>
         <label>
-          Tope interno
+          Tope base
           <input type="number" min="0" step="0.1" value="${tipo.maxSimple}" data-doc-type="${typeIndex}" data-doc-type-field="maxSimple">
         </label>
         <label>
@@ -2074,7 +2087,7 @@ function renderDocentesConfig() {
       ${originTable}
       <div class="teaching-subitems-heading">
         <span>${tipo.modo === "eadis" ? "Tramo de promedio EADIS" : "Subítem"}</span>
-        <span>Puntaje interno</span>
+        <span>Puntaje base</span>
         <span>Simple relativizado</span>
         <span>Exclusiva relativizada</span>
       </div>
@@ -2222,7 +2235,7 @@ function renderDocentesConfigSummary() {
   summary.innerHTML = `
     <span>
       Escala interna: ${internalBreakdown} = ${formatNumber(internalMax)}
-      <small>Suma de los topes. JTP y Ayudante de primera se valoran según el ámbito donde se ejerció cada cargo.</small>
+      <small>Suma de los topes. JTP y Ayte. 1ra se valoran según el ámbito donde se ejerció cada cargo.</small>
     </span>
     <span>
       Simple acordado: ${formatNumber(agreedSimple)}
@@ -2255,7 +2268,7 @@ function teachingOriginCellContent(subitem, postulante, cargas) {
 
 function teachingOriginCellExplanation(subitem, postulanteId, cargas) {
   const score = docentesSubitemRawScore(subitem, cargas[postulanteId]);
-  return `${teachingOriginExplanation(subitem, postulanteId, cargas)}\nSubtotal interno: ${formatNumber(score)}\nSimple: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))}\nExclusiva: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}`;
+  return `${teachingOriginExplanation(subitem, postulanteId, cargas)}\nSubtotal base: ${formatNumber(score)}\nSimple: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))}\nExclusiva: ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}`;
 }
 
 function teachingOriginMatrixRow(subitem, postulantes, cargas, module) {
@@ -2307,13 +2320,14 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
     <div class="publication-editor-fields">
       ${TEACHING_APPOINTMENT_ORIGINS.map((origin) => {
         const fieldId = teachingOriginFieldId(subitem.id, origin.id);
-        const value = cargas[postulante.id].valores[fieldId] ?? "";
+        const storedValue = cargas[postulante.id].valores[fieldId] ?? "";
+        const value = storedValue === "" ? "" : naturalYears(storedValue);
         const points = teachingOriginPoint(subitem, origin.id);
         return `
           <label>
             <span>${origin.nombre}</span>
-            <input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-teaching-origin-value="${fieldId}" aria-label="Años en ${escapeAttribute(origin.nombre)}">
-            <small>${formatNumber(points)} interno · S ${formatNumber(docentesRelativizedValue(points, getDocentesMaxSimple()))} · E ${formatNumber(docentesRelativizedValue(points, getDocentesMaxExclusiva()))}</small>
+            <input type="number" min="0" step="1" inputmode="numeric" value="${value}" data-teaching-origin-value="${fieldId}" aria-label="Años en ${escapeAttribute(origin.nombre)}">
+            <small>${formatNumber(points)} base · S ${formatNumber(docentesRelativizedValue(points, getDocentesMaxSimple()))} · E ${formatNumber(docentesRelativizedValue(points, getDocentesMaxExclusiva()))}</small>
           </label>
         `;
       }).join("")}
@@ -2326,14 +2340,17 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
     const score = docentesSubitemRawScore(subitem, cargas[postulante.id]);
     dialog.querySelector("[data-teaching-origin-summary]").innerHTML = `
       <span>${formatNumber(years, Number.isInteger(years) ? 0 : 2)} ${years === 1 ? "año" : "años"}</span>
-      <strong>Interno ${formatNumber(score)} · Simple ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))} · Exclusiva ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}</strong>
+      <strong>Base ${formatNumber(score)} · Simple ${formatNumber(docentesRelativizedValue(score, getDocentesMaxSimple()))} · Exclusiva ${formatNumber(docentesRelativizedValue(score, getDocentesMaxExclusiva()))}</strong>
     `;
   };
 
   dialog.querySelectorAll("[data-teaching-origin-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
       const fieldId = event.target.dataset.teachingOriginValue;
-      cargas[postulante.id].valores[fieldId] = event.target.value;
+      const rawValue = event.target.value;
+      const naturalValue = rawValue === "" ? "" : naturalYears(rawValue);
+      event.target.value = naturalValue;
+      cargas[postulante.id].valores[fieldId] = naturalValue;
       if (activeDocentesCargaId !== "consolidada") {
         syncConsolidatedAntecedentField(module, postulante.id, fieldId);
       }
@@ -2432,7 +2449,7 @@ function renderDocentesMatrix() {
         <summary>
           <strong>${tipo.nombre}</strong>
           <small>${teachingTypeInstruction(tipo)}</small>
-          <span>Tope interno: ${formatNumber(tipo.maxSimple)}</span>
+          <span>Tope base: ${formatNumber(tipo.maxSimple)}</span>
         </summary>
         <div class="opposition-grid">
           <table class="data-table opposition-matrix">
@@ -2465,7 +2482,7 @@ function renderDocentesMatrix() {
           </thead>
           <tbody>
           <tr class="teaching-total-row">
-            <th class="matrix-label">Total interno <span>Escala de ${formatNumber(docentesInternalMax())} puntos</span></th>
+            <th class="matrix-label">Puntaje base total <span>Escala de ${formatNumber(docentesInternalMax())} puntos</span></th>
             ${state.postulantes.map((postulante) => `
               <td class="score-cell"><strong data-doc-internal="${postulante.id}" ${calculationAttribute(docentesInternalExplanation(postulante.id, cargas))}>${formatNumber(docentesInternalScore(postulante.id, cargas))}</strong></td>
             `).join("")}
