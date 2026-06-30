@@ -2561,8 +2561,10 @@ function publicationCellContent(group, postulante, cargas) {
   const simple = cientificosRelativizedValue(internal, getCientificosMaxSimple());
   const exclusive = cientificosRelativizedValue(internal, getCientificosMaxExclusiva());
   return `
-    <span class="publication-cell-count">${count ? `${formatNumber(count, Number.isInteger(count) ? 0 : 2)} pub.` : "Cargar"}</span>
-    <span class="publication-cell-scores">S ${postulante.simple ? formatNumber(simple) : "—"} · E ${postulante.exclusiva ? formatNumber(exclusive) : "—"}</span>
+    ${count
+      ? `<span class="publication-cell-count">${formatNumber(count, Number.isInteger(count) ? 0 : 2)} pub.</span>
+         <span class="publication-cell-scores">S ${postulante.simple ? formatNumber(simple) : "—"} · E ${postulante.exclusiva ? formatNumber(exclusive) : "—"}</span>`
+      : `<span class="publication-cell-empty" aria-hidden="true"></span>`}
   `;
 }
 
@@ -2584,7 +2586,7 @@ function publicationMatrixRows(tipo, cargas, module) {
           : scientificPublicationGroupExplanation(group, postulante.id, cargas);
         return `
           <td class="publication-compact-cell${difference.differs ? " has-difference" : ""}">
-            <button type="button" class="publication-cell-button" data-open-publication="${group.id}:${postulante.id}" ${calculationAttribute(explanation)}>
+            <button type="button" class="publication-cell-button" data-open-publication="${group.id}:${postulante.id}" aria-label="Editar ${escapeAttribute(group.nombre)} de ${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}" ${calculationAttribute(explanation)}>
               ${publicationCellContent(group, postulante, cargas)}
             </button>
           </td>

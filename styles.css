@@ -1213,6 +1213,13 @@ main {
   font-weight: 700;
 }
 
+.publication-cell-empty {
+  display: block;
+  width: 34px;
+  margin: 0 auto;
+  border-bottom: 1px dotted #9aa3ad;
+}
+
 .publication-cell-scores {
   color: var(--muted);
   font-size: 11px;
