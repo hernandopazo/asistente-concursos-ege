@@ -1,5 +1,41 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 17;
+const DATA_VERSION = 18;
+
+const PUBLICATION_AUTHOR_POSITIONS = [
+  { id: "primero_ultimo", nombre: "Primero o último autor" },
+  { id: "segundo", nombre: "Segundo autor" },
+  { id: "tercero_cuarto", nombre: "3.º o 4.º en trabajos de hasta 5 autores" },
+  { id: "mas_cinco", nombre: "Más de 5 autores" }
+];
+
+const SCIENTIFIC_PUBLICATION_GROUPS = [
+  { id: "q1", nombre: "Publicación Q1", puntos: [2, 1.4, 0.7, 0.35] },
+  { id: "q2", nombre: "Publicación Q2", puntos: [1.5, 1.05, 0.525, 0.2625] },
+  { id: "q3_q4", nombre: "Publicación Q3-Q4", puntos: [1, 0.7, 0.35, 0.175] },
+  { id: "sin_indice", nombre: "Publicación sin índice", puntos: [0.3, 0.21, 0.105, 0.0525] },
+  { id: "com_corta_q1", nombre: "Comunicación corta Q1", puntos: [1, 0.7, 0.35, 0.175] },
+  { id: "com_corta_q2", nombre: "Comunicación corta Q2", puntos: [0.75, 0.525, 0.2625, 0.13125] },
+  { id: "com_corta_q3_q4", nombre: "Comunicación corta Q3-Q4", puntos: [0.5, 0.35, 0.175, 0.0875] },
+  { id: "com_corta_sin_indice", nombre: "Comunicación corta sin índice", puntos: [0.2, 0.14, 0.07, 0.035] },
+  { id: "enviado", nombre: "Trabajo enviado, aún no aceptado", puntos: [0.05, 0.035, 0.0175, 0.00875] },
+  { id: "libro_extranjero", nombre: "Libro extranjero", puntos: [4, 2.8, 1.4, 0.7] },
+  { id: "libro_nacional", nombre: "Libro nacional", puntos: [2, 1.4, 0.7, 0.35] },
+  { id: "capitulo_extranjero", nombre: "Capítulo de libro extranjero", puntos: [1, 0.7, 0.35, 0.175] },
+  { id: "capitulo_nacional", nombre: "Capítulo de libro nacional", puntos: [0.5, 0.35, 0.175, 0.0875] },
+  { id: "editor_libro", nombre: "Editor de libro", puntos: [2, 1.4, 0.7, 0.35] }
+];
+
+const SCIENTIFIC_PUBLICATION_SUBITEMS = SCIENTIFIC_PUBLICATION_GROUPS.flatMap((grupo) => (
+  PUBLICATION_AUTHOR_POSITIONS.map((posicion, index) => ({
+    id: `pub_${grupo.id}_${posicion.id}`,
+    nombre: `${grupo.nombre} — ${posicion.nombre}`,
+    puntos: grupo.puntos[index],
+    grupoId: grupo.id,
+    grupoNombre: grupo.nombre,
+    posicionId: posicion.id,
+    posicionNombre: posicion.nombre
+  }))
+));
 
 document.documentElement.dataset.spreadsheetReader = typeof XLSX === "undefined" ? "missing" : "ready";
 
@@ -10,7 +46,7 @@ const initialState = {
   contestEndDate: "",
   rubros: [
     { id: "docentes", nombre: "Antecedentes docentes", simpleMin: 15, simpleMax: 30, simple: 23.5, exclusivaMin: 12.5, exclusivaMax: 25, exclusiva: 21 },
-    { id: "cientificos", nombre: "Antecedentes científicos", simpleMin: 12.5, simpleMax: 25, simple: 20, exclusivaMin: 25, exclusivaMax: 50, exclusiva: 34 },
+    { id: "cientificos", nombre: "Antecedentes científicos", simpleMin: 12.5, simpleMax: 25, simple: 17, exclusivaMin: 25, exclusivaMax: 50, exclusiva: 33 },
     { id: "extension", nombre: "Antecedentes de extensión", simpleMin: 5, simpleMax: 10, simple: 7.5, exclusivaMin: 7.5, exclusivaMax: 15, exclusiva: 7.5 },
     { id: "profesionales", nombre: "Antecedentes profesionales", simpleMin: 12.5, simpleMax: 25, simple: 17, exclusivaMin: 7.5, exclusivaMax: 15, exclusiva: 7.5 },
     { id: "otros", nombre: "Otros: calificaciones, títulos, estudios y otros antecedentes", simpleMin: 5, simpleMax: 10, simple: 5, exclusivaMin: 5, exclusivaMax: 10, exclusiva: 5 },
@@ -107,111 +143,75 @@ const initialState = {
     tipos: [
       {
         id: "publicaciones",
-        nombre: "Publicaciones",
-        maxInterno: 12.857,
-        instruccion: "Ingrese la cantidad de publicaciones según tipo y posición de autoría.",
-        subitems: [
-          { id: "pub_index12_primero", nombre: "Publicación Q1-Q2 — primero/último", puntos: 3.15 },
-          { id: "pub_index12_segundo", nombre: "Publicación Q1-Q2 — segundo", puntos: 2.5 },
-          { id: "pub_index12_otro", nombre: "Publicación Q1-Q2 — otro lugar", puntos: 1.247 },
-          { id: "pub_index34_primero", nombre: "Publicación Q3-Q4 — primero/último", puntos: 2.5 },
-          { id: "pub_index34_segundo", nombre: "Publicación Q3-Q4 — segundo", puntos: 1.247 },
-          { id: "pub_index34_otro", nombre: "Publicación Q3-Q4 — otro lugar", puntos: 0.6 },
-          { id: "pub_no_index_primero", nombre: "Publicación sin cuartil — primero/último", puntos: 1.6 },
-          { id: "pub_no_index_segundo", nombre: "Publicación sin cuartil — segundo", puntos: 0.95 },
-          { id: "pub_no_index_otro", nombre: "Publicación sin cuartil — otro lugar", puntos: 0.3 },
-          { id: "pub_short_index_primero", nombre: "Comunicación corta Q1-Q4 — primero/último", puntos: 1.247 },
-          { id: "pub_short_index_segundo", nombre: "Comunicación corta Q1-Q4 — segundo", puntos: 0.6 },
-          { id: "pub_short_index_otro", nombre: "Comunicación corta Q1-Q4 — otro lugar", puntos: 0.3 },
-          { id: "pub_short_no_index_primero", nombre: "Comunicación corta sin cuartil — primero/último", puntos: 0.3 },
-          { id: "pub_short_no_index_segundo", nombre: "Comunicación corta sin cuartil — segundo", puntos: 0.15 },
-          { id: "pub_short_no_index_otro", nombre: "Comunicación corta sin cuartil — otro lugar", puntos: 0.078 },
-          { id: "pub_enviado_primero", nombre: "Trabajo enviado — primero/último", puntos: 0.031 },
-          { id: "pub_enviado_segundo", nombre: "Trabajo enviado — segundo", puntos: 0.031 },
-          { id: "pub_enviado_otro", nombre: "Trabajo enviado — otro lugar", puntos: 0.031 },
-          { id: "pub_libro_ext_primero", nombre: "Libro extranjero — primero/último", puntos: 6.25 },
-          { id: "pub_libro_ext_segundo", nombre: "Libro extranjero — segundo", puntos: 3.15 },
-          { id: "pub_libro_ext_otro", nombre: "Libro extranjero — otro lugar", puntos: 1.6 },
-          { id: "pub_libro_nac_primero", nombre: "Libro nacional — primero/último", puntos: 3.15 },
-          { id: "pub_libro_nac_segundo", nombre: "Libro nacional — segundo", puntos: 2.5 },
-          { id: "pub_libro_nac_otro", nombre: "Libro nacional — otro lugar", puntos: 1.247 },
-          { id: "pub_cap_ext_primero", nombre: "Capítulo de libro extranjero — primero/último", puntos: 3.15 },
-          { id: "pub_cap_ext_segundo", nombre: "Capítulo de libro extranjero — segundo", puntos: 2.5 },
-          { id: "pub_cap_ext_otro", nombre: "Capítulo de libro extranjero — otro lugar", puntos: 1.247 },
-          { id: "pub_cap_ext_otros", nombre: "Capítulo de libro extranjero — otros", puntos: 0.156 },
-          { id: "pub_cap_nac_primero", nombre: "Capítulo de libro nacional — primero/último", puntos: 1.6 },
-          { id: "pub_cap_nac_segundo", nombre: "Capítulo de libro nacional — segundo", puntos: 1.247 },
-          { id: "pub_cap_nac_otro", nombre: "Capítulo de libro nacional — otro lugar", puntos: 0.65 }
-        ]
+        nombre: "Publicaciones publicadas, en prensa o aceptadas",
+        maxInterno: 20,
+        instruccion: "Seleccione un tipo para cargar cantidades según la posición de autoría.",
+        subitems: SCIENTIFIC_PUBLICATION_SUBITEMS
       },
       {
         id: "congresos",
         nombre: "Congresos",
-        maxInterno: 3.857,
+        maxInterno: 5,
         instruccion: "Ingrese la cantidad de presentaciones según tipo y autoría.",
         subitems: [
-          { id: "cong_invitada_primero", nombre: "Conferencia invitada — primero", puntos: 0.15 },
-          { id: "cong_nac_actas_primero", nombre: "Nacional con actas — primero", puntos: 0.1 },
-          { id: "cong_nac_actas_resto", nombre: "Nacional con actas — resto", puntos: 0.02 },
-          { id: "cong_ext_actas_primero", nombre: "Extranjero con actas — primero", puntos: 0.13 },
-          { id: "cong_ext_actas_resto", nombre: "Extranjero con actas — resto", puntos: 0.031 },
-          { id: "cong_nac_rev_primero", nombre: "Nacional en revista — primero", puntos: 0.12 },
-          { id: "cong_nac_rev_resto", nombre: "Nacional en revista — resto", puntos: 0.06 },
-          { id: "cong_ext_rev_primero", nombre: "Extranjero en revista — primero", puntos: 0.14 },
-          { id: "cong_ext_rev_resto", nombre: "Extranjero en revista — resto", puntos: 0.07 }
+          { id: "cong_plenaria_primero", nombre: "Conferencia plenaria invitada — primero", puntos: 0.75 },
+          { id: "cong_plenaria_resto", nombre: "Conferencia plenaria invitada — resto", puntos: 0 },
+          { id: "cong_ordinaria_primero", nombre: "Conferencia ordinaria o simposio — primero", puntos: 0.6 },
+          { id: "cong_ordinaria_resto", nombre: "Conferencia ordinaria o simposio — resto", puntos: 0.3 },
+          { id: "cong_actas_internacional_primero", nombre: "Trabajo completo en actas de congreso internacional — primero", puntos: 0.5 },
+          { id: "cong_actas_internacional_resto", nombre: "Trabajo completo en actas de congreso internacional — resto", puntos: 0.25 },
+          { id: "cong_actas_nacional_primero", nombre: "Trabajo completo en actas de congreso nacional — primero", puntos: 0.4 },
+          { id: "cong_actas_nacional_resto", nombre: "Trabajo completo en actas de congreso nacional — resto", puntos: 0.2 },
+          { id: "cong_resumen_internacional_primero", nombre: "Resumen internacional — primero", puntos: 0.1 },
+          { id: "cong_resumen_internacional_resto", nombre: "Resumen internacional — resto", puntos: 0.05 },
+          { id: "cong_resumen_nacional_primero", nombre: "Resumen nacional — primero", puntos: 0.05 },
+          { id: "cong_resumen_nacional_resto", nombre: "Resumen nacional — resto", puntos: 0.025 }
         ]
       },
       {
         id: "cursos_cientificos",
         nombre: "Cursos de especialización fuera del doctorado",
-        maxInterno: 1.286,
+        maxInterno: 2,
         instruccion: "Ingrese la cantidad de cursos o seminarios realizados.",
         subitems: [
-          { id: "cien_materias_100", nombre: "Materias de más de 100 horas", puntos: 0.25 },
-          { id: "cien_cursos_menos_100", nombre: "Cursos con examen de menos de 100 horas", puntos: 0.12 },
-          { id: "cien_seminarios_40", nombre: "Seminarios de más de 40 horas", puntos: 0.06 },
-          { id: "cien_seminarios_menos_40", nombre: "Seminarios de menos de 40 horas", puntos: 0.03 }
+          { id: "cien_curso_internacional_100", nombre: "Curso internacional de más de 100 horas", puntos: 1 },
+          { id: "cien_curso_nacional_100", nombre: "Curso nacional con examen de más de 100 horas", puntos: 0.5 },
+          { id: "cien_curso_examen_menos_100", nombre: "Curso con examen de menos de 100 horas", puntos: 0.25 },
+          { id: "cien_seminario_40", nombre: "Seminario de más de 40 horas", puntos: 0.1 },
+          { id: "cien_seminario_20_40", nombre: "Seminario de 20 a 40 horas", puntos: 0.05 }
         ]
       },
       {
         id: "rrhh",
         nombre: "Formación de recursos humanos",
-        maxInterno: 2.571,
+        maxInterno: 3,
         instruccion: "Ingrese la cantidad de direcciones, codirecciones o asistencias.",
         subitems: [
-          { id: "rrhh_dir_tesis_def", nombre: "Director — tesis defendida", puntos: 0.95 },
-          { id: "rrhh_dir_tesis_curso", nombre: "Director — tesis en curso", puntos: 0.33 },
-          { id: "rrhh_dir_tesina_def", nombre: "Director — tesina defendida", puntos: 0.3 },
-          { id: "rrhh_dir_tesina_curso", nombre: "Director — tesina en curso", puntos: 0.15 },
-          { id: "rrhh_dir_beca", nombre: "Director — beca doctoral", puntos: 0.3 },
-          { id: "rrhh_dir_pasante", nombre: "Director — pasante o beca estímulo", puntos: 0.15 },
-          { id: "rrhh_dir_ad_honorem", nombre: "Director — pasante ad honorem", puntos: 0.05 },
-          { id: "rrhh_codir_tesis_def", nombre: "Codirector — tesis defendida", puntos: 0 },
-          { id: "rrhh_codir_tesis_curso", nombre: "Codirector — tesis en curso", puntos: 0 },
-          { id: "rrhh_codir_tesina_def", nombre: "Codirector — tesina defendida", puntos: 0.3 },
-          { id: "rrhh_codir_tesina_curso", nombre: "Codirector — tesina en curso", puntos: 0.16 },
-          { id: "rrhh_codir_beca", nombre: "Codirector — beca doctoral", puntos: 0.3 },
-          { id: "rrhh_codir_pasante", nombre: "Codirector — pasante o beca estímulo", puntos: 0 },
-          { id: "rrhh_asist_tesis_def", nombre: "Director asistente — tesis defendida", puntos: 0.62 },
-          { id: "rrhh_asist_tesis_curso", nombre: "Director asistente — tesis en curso", puntos: 0.15 },
-          { id: "rrhh_asist_tesina_def", nombre: "Director asistente — tesina defendida", puntos: 0.15 },
-          { id: "rrhh_asist_tesina_curso", nombre: "Director asistente — tesina en curso", puntos: 0.08 },
-          { id: "rrhh_asist_beca", nombre: "Director asistente — beca doctoral", puntos: 0 },
-          { id: "rrhh_asist_pasante", nombre: "Director asistente — pasante o beca estímulo", puntos: 0 }
+          { id: "rrhh_dir_tesis_def", nombre: "Director o codirector — tesis defendida", puntos: 1 },
+          { id: "rrhh_dir_tesis_curso", nombre: "Director o codirector — tesis en curso", puntos: 0.5 },
+          { id: "rrhh_dir_tesina_def", nombre: "Director o codirector — tesina defendida", puntos: 0.35 },
+          { id: "rrhh_dir_tesina_curso", nombre: "Director o codirector — tesina en curso", puntos: 0.1 },
+          { id: "rrhh_dir_beca", nombre: "Director o codirector — beca doctoral o de investigador", puntos: 0.3 },
+          { id: "rrhh_dir_pasante", nombre: "Director o codirector — pasante o beca estímulo", puntos: 0.1 },
+          { id: "rrhh_dir_ad_honorem", nombre: "Director o codirector — pasante ad honorem", puntos: 0.05 },
+          { id: "rrhh_asist_tesis_def", nombre: "Director asistente o adjunto — tesis defendida", puntos: 0.7 },
+          { id: "rrhh_asist_tesis_curso", nombre: "Director asistente o adjunto — tesis en curso", puntos: 0.2 },
+          { id: "rrhh_asist_tesina_def", nombre: "Director asistente o adjunto — tesina defendida", puntos: 0.15 },
+          { id: "rrhh_asist_tesina_curso", nombre: "Director asistente o adjunto — tesina en curso", puntos: 0.05 },
+          { id: "rrhh_asist_beca", nombre: "Director asistente o adjunto — beca doctoral o de investigador", puntos: 0.15 },
+          { id: "rrhh_asist_pasante", nombre: "Director asistente o adjunto — pasante o beca estímulo", puntos: 0.05 },
+          { id: "rrhh_asist_ad_honorem", nombre: "Director asistente o adjunto — pasante ad honorem", puntos: 0.025 }
         ]
       },
       {
         id: "proyectos",
         nombre: "Proyectos ganados y subsidiados",
-        maxInterno: 1.929,
+        maxInterno: 3,
         instruccion: "Ingrese la cantidad de proyectos según función desempeñada.",
         subitems: [
-          { id: "proy_sub_dir", nombre: "Proyecto subsidiado — director", puntos: 0.5 },
-          { id: "proy_sub_codir", nombre: "Proyecto subsidiado — codirector", puntos: 0.5 },
-          { id: "proy_sub_part", nombre: "Proyecto subsidiado — participante", puntos: 0.1 },
           { id: "proy_ganado_dir", nombre: "Proyecto ganado y subsidiado — director", puntos: 1 },
           { id: "proy_ganado_codir", nombre: "Proyecto ganado y subsidiado — codirector", puntos: 0.5 },
-          { id: "proy_ganado_part", nombre: "Proyecto ganado y subsidiado — participante", puntos: 0.1 }
+          { id: "proy_ganado_part", nombre: "Proyecto ganado y subsidiado — participante doctor o becario", puntos: 0.2 }
         ]
       }
     ],
@@ -541,6 +541,15 @@ function migrateState(savedState) {
   }
   if ((savedState.dataVersion || 1) < 17) {
     savedState.otrosAntecedentes = clone(initialState.otrosAntecedentes);
+  }
+  if ((savedState.dataVersion || 1) < 18) {
+    savedState.antecedentesCientificos ||= clone(initialState.antecedentesCientificos);
+    savedState.antecedentesCientificos.tipos = clone(initialState.antecedentesCientificos.tipos);
+    const rubroCientificos = savedState.rubros?.find((rubro) => rubro.id === "cientificos");
+    if (rubroCientificos) {
+      rubroCientificos.simple = 17;
+      rubroCientificos.exclusiva = 33;
+    }
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
@@ -1086,6 +1095,58 @@ function cientificosTipoRawScore(tipo, postulanteId, cargas = state.antecedentes
   return tipo.subitems.reduce((sum, subitem) => {
     return sum + Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0);
   }, 0);
+}
+
+function scientificPublicationGroups(tipo) {
+  const groups = new Map();
+  tipo.subitems.forEach((subitem) => {
+    if (!subitem.grupoId) return;
+    if (!groups.has(subitem.grupoId)) {
+      groups.set(subitem.grupoId, {
+        id: subitem.grupoId,
+        nombre: subitem.grupoNombre || subitem.nombre,
+        subitems: []
+      });
+    }
+    groups.get(subitem.grupoId).subitems.push(subitem);
+  });
+  return [...groups.values()];
+}
+
+function scientificPublicationGroupScore(group, postulanteId, cargas) {
+  const valores = cargas[postulanteId]?.valores || {};
+  return group.subitems.reduce((sum, subitem) => (
+    sum + Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0)
+  ), 0);
+}
+
+function scientificPublicationGroupCount(group, postulanteId, cargas) {
+  const valores = cargas[postulanteId]?.valores || {};
+  return group.subitems.reduce((sum, subitem) => sum + Number(valores[subitem.id] || 0), 0);
+}
+
+function scientificPublicationGroupExplanation(group, postulanteId, cargas) {
+  const valores = cargas[postulanteId]?.valores || {};
+  const lines = group.subitems
+    .filter((subitem) => Number(valores[subitem.id] || 0) !== 0)
+    .map((subitem) => {
+      const cantidad = Number(valores[subitem.id] || 0);
+      return `${subitem.posicionNombre}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`;
+    });
+  const score = scientificPublicationGroupScore(group, postulanteId, cargas);
+  return `${group.nombre}\n${lines.length ? lines.join("\n") : "Sin publicaciones cargadas."}\nSubtotal interno: ${formatNumber(score)}\nSimple: ${formatNumber(cientificosRelativizedValue(score, getCientificosMaxSimple()))}\nExclusiva: ${formatNumber(cientificosRelativizedValue(score, getCientificosMaxExclusiva()))}`;
+}
+
+function scientificPublicationGroupDifference(module, postulanteId, group) {
+  const differences = group.subitems
+    .map((subitem) => ({ subitem, difference: antecedentDifference(module, postulanteId, subitem.id) }))
+    .filter(({ difference }) => difference.differs);
+  return {
+    differs: differences.length > 0,
+    explanation: differences.map(({ subitem, difference }) => (
+      `${subitem.posicionNombre}:\n${difference.explanation}`
+    )).join("\n\n")
+  };
 }
 
 function cientificosTipoScore(tipo, postulanteId, cargas = state.antecedentesCientificos.cargas) {
@@ -2228,15 +2289,78 @@ function updateDocentesCandidate(postulanteId) {
   }
 }
 
+function publicationConfigSection(tipo, typeIndex) {
+  const groups = scientificPublicationGroups(tipo);
+  const rows = groups.map((group) => `
+    <tr>
+      <th>
+        <input type="text" value="${escapeAttribute(group.nombre)}" data-cien-publication-group-name="${group.id}" data-cien-type="${typeIndex}" aria-label="Tipo de publicación">
+      </th>
+      ${group.subitems.map((subitem) => {
+        const itemIndex = tipo.subitems.indexOf(subitem);
+        return `
+          <td>
+            <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-cien-type="${typeIndex}" data-cien-item="${itemIndex}" data-cien-field="puntos" aria-label="Puntaje de ${escapeAttribute(group.nombre)}, ${escapeAttribute(subitem.posicionNombre)}">
+            <small>
+              S <output data-cien-item-simple="${typeIndex}:${itemIndex}">${formatNumber(cientificosRelativizedValue(subitem.puntos, getCientificosMaxSimple()))}</output>
+              · E <output data-cien-item-exclusive="${typeIndex}:${itemIndex}">${formatNumber(cientificosRelativizedValue(subitem.puntos, getCientificosMaxExclusiva()))}</output>
+            </small>
+          </td>
+        `;
+      }).join("")}
+    </tr>
+  `).join("");
+  return `
+    <section class="teaching-type publication-config-type">
+      <div class="teaching-type-header">
+        <label>
+          Tipo de antecedente
+          <input type="text" value="${escapeAttribute(tipo.nombre)}" data-cien-type="${typeIndex}" data-cien-type-field="nombre">
+        </label>
+        <label>
+          Tope interno
+          <input type="number" min="0" step="0.01" value="${editableNumber(tipo.maxInterno, 2)}" data-cien-type="${typeIndex}" data-cien-type-field="maxInterno">
+        </label>
+        <label>
+          Tope Simple relativizado
+          <output class="teaching-derived-value" data-cien-type-simple="${typeIndex}">${formatNumber(cientificosRelativizedValue(tipo.maxInterno, getCientificosMaxSimple()))}</output>
+        </label>
+        <label>
+          Tope Exclusiva relativizado
+          <output class="teaching-derived-value" data-cien-type-exclusive="${typeIndex}">${formatNumber(cientificosRelativizedValue(tipo.maxInterno, getCientificosMaxExclusiva()))}</output>
+        </label>
+      </div>
+      <div class="publication-score-table-shell">
+        <table class="publication-score-table">
+          <thead>
+            <tr>
+              <th>Tipo de publicación</th>
+              ${PUBLICATION_AUTHOR_POSITIONS.map((position) => `<th>${position.nombre}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="teaching-type-actions">
+        <button class="small-button" type="button" data-add-publication-group="${typeIndex}">Agregar tipo de publicación</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderCientificosConfig() {
   const container = document.querySelector("#cientificos-types-list");
   container.innerHTML = "";
   state.antecedentesCientificos.tipos.forEach((tipo, typeIndex) => {
+    if (tipo.id === "publicaciones") {
+      container.insertAdjacentHTML("beforeend", publicationConfigSection(tipo, typeIndex));
+      return;
+    }
     const section = document.createElement("section");
     section.className = "teaching-type";
     const subitems = tipo.subitems.map((subitem, itemIndex) => `
       <div class="teaching-subitem-row">
-        <input type="text" value="${subitem.nombre}" data-cien-type="${typeIndex}" data-cien-item="${itemIndex}" data-cien-field="nombre" aria-label="Nombre del subítem científico">
+        <input type="text" value="${escapeAttribute(subitem.nombre)}" data-cien-type="${typeIndex}" data-cien-item="${itemIndex}" data-cien-field="nombre" aria-label="Nombre del subítem científico">
         <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-cien-type="${typeIndex}" data-cien-item="${itemIndex}" data-cien-field="puntos" aria-label="Puntaje interno">
         <output class="teaching-derived-value" data-cien-item-simple="${typeIndex}:${itemIndex}">${formatNumber(cientificosRelativizedValue(subitem.puntos, getCientificosMaxSimple()))}</output>
         <output class="teaching-derived-value" data-cien-item-exclusive="${typeIndex}:${itemIndex}">${formatNumber(cientificosRelativizedValue(subitem.puntos, getCientificosMaxExclusiva()))}</output>
@@ -2246,7 +2370,7 @@ function renderCientificosConfig() {
       <div class="teaching-type-header">
         <label>
           Tipo de antecedente
-          <input type="text" value="${tipo.nombre}" data-cien-type="${typeIndex}" data-cien-type-field="nombre">
+          <input type="text" value="${escapeAttribute(tipo.nombre)}" data-cien-type="${typeIndex}" data-cien-type-field="nombre">
         </label>
         <label>
           Tope interno
@@ -2306,6 +2430,22 @@ function renderCientificosConfig() {
       renderMerit();
     });
   });
+  container.querySelectorAll("[data-cien-publication-group-name]").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const tipo = state.antecedentesCientificos.tipos[Number(event.target.dataset.cienType)];
+      const groupId = event.target.dataset.cienPublicationGroupName;
+      tipo.subitems.filter((subitem) => subitem.grupoId === groupId).forEach((subitem) => {
+        subitem.grupoNombre = event.target.value;
+        subitem.nombre = `${event.target.value} — ${subitem.posicionNombre}`;
+      });
+      saveState();
+    });
+    input.addEventListener("change", () => {
+      renderCientificosMatrix();
+      renderResultados();
+      renderMerit();
+    });
+  });
   container.querySelectorAll("[data-add-cien-item]").forEach((button) => {
     button.addEventListener("click", () => {
       const tipo = state.antecedentesCientificos.tipos[Number(button.dataset.addCienItem)];
@@ -2313,6 +2453,24 @@ function renderCientificosConfig() {
         id: `cien_item_${Date.now()}`,
         nombre: "Nuevo subítem",
         puntos: 0
+      });
+      render();
+    });
+  });
+  container.querySelectorAll("[data-add-publication-group]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tipo = state.antecedentesCientificos.tipos[Number(button.dataset.addPublicationGroup)];
+      const groupId = `publicacion_${Date.now()}`;
+      PUBLICATION_AUTHOR_POSITIONS.forEach((position) => {
+        tipo.subitems.push({
+          id: `${groupId}_${position.id}`,
+          nombre: `Nuevo tipo de publicación — ${position.nombre}`,
+          puntos: 0,
+          grupoId: groupId,
+          grupoNombre: "Nuevo tipo de publicación",
+          posicionId: position.id,
+          posicionNombre: position.nombre
+        });
       });
       render();
     });
@@ -2397,6 +2555,123 @@ function restoreCientificosDefaults() {
   render();
 }
 
+function publicationCellContent(group, postulante, cargas) {
+  const count = scientificPublicationGroupCount(group, postulante.id, cargas);
+  const internal = scientificPublicationGroupScore(group, postulante.id, cargas);
+  const simple = cientificosRelativizedValue(internal, getCientificosMaxSimple());
+  const exclusive = cientificosRelativizedValue(internal, getCientificosMaxExclusiva());
+  return `
+    <span class="publication-cell-count">${count ? `${formatNumber(count, Number.isInteger(count) ? 0 : 2)} pub.` : "Cargar"}</span>
+    <span class="publication-cell-scores">S ${postulante.simple ? formatNumber(simple) : "—"} · E ${postulante.exclusiva ? formatNumber(exclusive) : "—"}</span>
+  `;
+}
+
+function publicationCountText(count) {
+  const formatted = formatNumber(count, Number.isInteger(count) ? 0 : 2);
+  return `${formatted} ${count === 1 ? "publicación" : "publicaciones"}`;
+}
+
+function publicationMatrixRows(tipo, cargas, module) {
+  return scientificPublicationGroups(tipo).map((group) => `
+    <tr>
+      <th class="matrix-label">${escapeAttribute(group.nombre)}<span>Cuatro posiciones de autoría</span></th>
+      ${state.postulantes.map((postulante) => {
+        const difference = activeCientificosCargaId === "consolidada" && module.modalidad === "evaluadores"
+          ? scientificPublicationGroupDifference(module, postulante.id, group)
+          : { differs: false, explanation: "" };
+        const explanation = difference.differs
+          ? `${scientificPublicationGroupExplanation(group, postulante.id, cargas)}\n\nDiferencia entre evaluadores:\n${difference.explanation}`
+          : scientificPublicationGroupExplanation(group, postulante.id, cargas);
+        return `
+          <td class="publication-compact-cell${difference.differs ? " has-difference" : ""}">
+            <button type="button" class="publication-cell-button" data-open-publication="${group.id}:${postulante.id}" ${calculationAttribute(explanation)}>
+              ${publicationCellContent(group, postulante, cargas)}
+            </button>
+          </td>
+        `;
+      }).join("")}
+    </tr>
+  `).join("");
+}
+
+function updatePublicationCell(group, postulante, cargas) {
+  const button = document.querySelector(`[data-open-publication="${group.id}:${postulante.id}"]`);
+  if (!button) return;
+  button.innerHTML = publicationCellContent(group, postulante, cargas);
+  updateCalculation(button, scientificPublicationGroupExplanation(group, postulante.id, cargas));
+}
+
+function openPublicationEditor(tipo, group, postulante, cargas, module) {
+  const dialog = document.querySelector("#publication-editor");
+  if (!dialog) return;
+  dialog.innerHTML = `
+    <div class="publication-editor-heading">
+      <div>
+        <span>${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}</span>
+        <h3>${escapeAttribute(group.nombre)}</h3>
+      </div>
+      <button class="icon-button publication-editor-close" type="button" data-close-publication-editor aria-label="Cerrar">×</button>
+    </div>
+    <div class="publication-editor-columns" aria-hidden="true">
+      <span>Posición de autoría</span>
+      <span>Cantidad</span>
+      <span>Puntaje</span>
+    </div>
+    <div class="publication-editor-fields">
+      ${group.subitems.map((subitem) => {
+        const value = cargas[postulante.id].valores[subitem.id] ?? "";
+        const simple = cientificosRelativizedValue(subitem.puntos, getCientificosMaxSimple());
+        const exclusive = cientificosRelativizedValue(subitem.puntos, getCientificosMaxExclusiva());
+        return `
+          <label>
+            <span>${escapeAttribute(subitem.posicionNombre)}</span>
+            <input type="number" min="0" step="1" value="${value === "" ? "" : editableNumber(value, 2)}" data-publication-value="${subitem.id}" aria-label="Cantidad: ${escapeAttribute(subitem.posicionNombre)}">
+            <small>S ${formatNumber(simple)} · E ${formatNumber(exclusive)}</small>
+          </label>
+        `;
+      }).join("")}
+    </div>
+    <div class="publication-editor-summary" data-publication-editor-summary></div>
+  `;
+
+  const refreshSummary = () => {
+    const count = scientificPublicationGroupCount(group, postulante.id, cargas);
+    const internal = scientificPublicationGroupScore(group, postulante.id, cargas);
+    dialog.querySelector("[data-publication-editor-summary]").innerHTML = `
+      <span>${publicationCountText(count)}</span>
+      <strong>Interno ${formatNumber(internal)} · Simple ${formatNumber(cientificosRelativizedValue(internal, getCientificosMaxSimple()))} · Exclusiva ${formatNumber(cientificosRelativizedValue(internal, getCientificosMaxExclusiva()))}</strong>
+    `;
+  };
+
+  dialog.querySelectorAll("[data-publication-value]").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const subitemId = event.target.dataset.publicationValue;
+      cargas[postulante.id].valores[subitemId] = event.target.value;
+      if (activeCientificosCargaId !== "consolidada") {
+        syncConsolidatedAntecedentField(module, postulante.id, subitemId);
+      }
+      refreshSummary();
+      updatePublicationCell(group, postulante, cargas);
+      updateCientificosCandidate(postulante.id, cargas);
+      renderResultados();
+      renderMerit();
+      saveState();
+    });
+  });
+  dialog.querySelector("[data-close-publication-editor]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("close", () => {
+    renderCientificosMatrix();
+    window.collaboration?.applyPermissions?.();
+  }, { once: true });
+  refreshSummary();
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  window.collaboration?.applyPermissions?.();
+}
+
 function renderCientificosMatrix() {
   const container = document.querySelector("#cientificos-matrix");
   const module = state.antecedentesCientificos;
@@ -2426,12 +2701,12 @@ function renderCientificosMatrix() {
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
-              <th class="matrix-label">Criterio científico</th>
+              <th class="matrix-label">${tipo.id === "publicaciones" ? "Tipo de publicación" : "Criterio científico"}</th>
               ${candidateHeaders}
             </tr>
           </thead>
           <tbody>
-            ${tipo.subitems.map((subitem) => `
+            ${tipo.id === "publicaciones" ? publicationMatrixRows(tipo, cargas, module) : tipo.subitems.map((subitem) => `
               <tr>
                 <th class="matrix-label">${subitem.nombre}<span>${formatNumber(subitem.puntos)} puntos por unidad</span></th>
                 ${state.postulantes.map((postulante) => {
@@ -2488,8 +2763,22 @@ function renderCientificosMatrix() {
         </tbody>
       </table>
       </div>
+      <dialog id="publication-editor" class="publication-editor"></dialog>
     </div>
   `;
+
+  const publicationType = module.tipos.find((tipo) => tipo.id === "publicaciones");
+  if (publicationType) {
+    const publicationGroups = scientificPublicationGroups(publicationType);
+    container.querySelectorAll("[data-open-publication]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const [groupId, postulanteId] = button.dataset.openPublication.split(":");
+        const group = publicationGroups.find((item) => item.id === groupId);
+        const postulante = state.postulantes.find((item) => item.id === postulanteId);
+        if (group && postulante) openPublicationEditor(publicationType, group, postulante, cargas, module);
+      });
+    });
+  }
 
   container.querySelectorAll("[data-cien-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -2510,29 +2799,30 @@ function renderCientificosMatrix() {
   });
 }
 
-function updateCientificosCandidate(postulanteId) {
+function updateCientificosCandidate(postulanteId, cargas = state.antecedentesCientificos.cargas) {
   state.antecedentesCientificos.tipos.forEach((tipo) => {
     const subtotal = document.querySelector(`[data-cien-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
-      subtotal.textContent = formatNumber(cientificosTipoScore(tipo, postulanteId));
-      updateCalculation(subtotal, cientificosTipoExplanation(tipo, postulanteId));
+      subtotal.textContent = formatNumber(cientificosTipoScore(tipo, postulanteId, cargas));
+      updateCalculation(subtotal, cientificosTipoExplanation(tipo, postulanteId, cargas));
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
   const internal = document.querySelector(`[data-cien-internal="${postulanteId}"]`);
   const simple = document.querySelector(`[data-cien-simple="${postulanteId}"]`);
   const exclusive = document.querySelector(`[data-cien-exclusive="${postulanteId}"]`);
+  const internalScore = cientificosInternalScore(postulanteId, cargas);
   if (internal) {
-    internal.textContent = formatNumber(cientificosInternalScore(postulanteId));
-    updateCalculation(internal, cientificosInternalExplanation(postulanteId));
+    internal.textContent = formatNumber(internalScore);
+    updateCalculation(internal, cientificosInternalExplanation(postulanteId, cargas));
   }
   if (simple) {
-    simple.textContent = postulante.simple ? formatNumber(cientificosSimpleScore(postulanteId)) : "—";
-    updateCalculation(simple, cientificosRelativizedExplanation(postulanteId, getCientificosMaxSimple(), "Simple"));
+    simple.textContent = postulante.simple ? formatNumber(cientificosRelativizedValue(internalScore, getCientificosMaxSimple())) : "—";
+    updateCalculation(simple, cientificosRelativizedExplanationFromCargas(postulanteId, getCientificosMaxSimple(), "Simple", cargas));
   }
   if (exclusive) {
-    exclusive.textContent = postulante.exclusiva ? formatNumber(cientificosExclusiveScore(postulanteId)) : "—";
-    updateCalculation(exclusive, cientificosRelativizedExplanation(postulanteId, getCientificosMaxExclusiva(), "Exclusiva"));
+    exclusive.textContent = postulante.exclusiva ? formatNumber(cientificosRelativizedValue(internalScore, getCientificosMaxExclusiva())) : "—";
+    updateCalculation(exclusive, cientificosRelativizedExplanationFromCargas(postulanteId, getCientificosMaxExclusiva(), "Exclusiva", cargas));
   }
 }
 
