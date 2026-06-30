@@ -1021,6 +1021,19 @@ function naturalYears(value) {
   return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
 }
 
+function scoreReachesCap(rawScore, cap) {
+  const numericCap = Number(cap || 0);
+  return numericCap > 0 && Number(rawScore || 0) >= numericCap - 1e-9;
+}
+
+function saturationClass(rawScore, cap) {
+  return scoreReachesCap(rawScore, cap) ? " is-saturated-score" : "";
+}
+
+function updateSaturation(element, rawScore, cap) {
+  element?.classList.toggle("is-saturated-score", scoreReachesCap(rawScore, cap));
+}
+
 function docentesSubitemRawScore(subitem, carga) {
   if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
     return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
@@ -1073,7 +1086,7 @@ function postulanteDepartamentoLabel(postulante) {
   return "EGE";
 }
 
-function docentesTipoScore(tipo, postulanteId, cargas = state.antecedentesDocentes.cargas) {
+function docentesTipoRawScore(tipo, postulanteId, cargas = state.antecedentesDocentes.cargas) {
   const carga = cargas[postulanteId];
   if (!carga) return 0;
   if (tipo.modo === "eadis") {
@@ -1082,12 +1095,15 @@ function docentesTipoScore(tipo, postulanteId, cargas = state.antecedentesDocent
     const tramo = [...tipo.subitems]
       .sort((a, b) => Number(b.min || 0) - Number(a.min || 0))
       .find((subitem) => promedio >= Number(subitem.min || 0));
-    return Math.min(Number(tipo.maxSimple || 0), Number(tramo?.puntos || 0));
+    return Number(tramo?.puntos || 0);
   }
-  const total = tipo.subitems.reduce((sum, subitem) => {
+  return tipo.subitems.reduce((sum, subitem) => {
     return sum + docentesSubitemRawScore(subitem, carga);
   }, 0);
-  return Math.min(Number(tipo.maxSimple || 0), total);
+}
+
+function docentesTipoScore(tipo, postulanteId, cargas = state.antecedentesDocentes.cargas) {
+  return Math.min(Number(tipo.maxSimple || 0), docentesTipoRawScore(tipo, postulanteId, cargas));
 }
 
 function docentesTipoExplanation(tipo, postulanteId, cargas = state.antecedentesDocentes.cargas) {
@@ -1112,11 +1128,9 @@ function docentesTipoExplanation(tipo, postulanteId, cargas = state.antecedentes
       ? [`${subitem.nombre}: ${formatNumber(cantidad, 2)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`]
       : [];
   });
-  const rawTotal = tipo.subitems.reduce((sum, subitem) => {
-    return sum + docentesSubitemRawScore(subitem, carga);
-  }, 0);
-  const capNote = rawTotal > Number(tipo.maxSimple || 0)
-    ? `\nSe aplica el tope base de ${formatNumber(tipo.maxSimple)}.`
+  const rawTotal = docentesTipoRawScore(tipo, postulanteId, cargas);
+  const capNote = scoreReachesCap(rawTotal, tipo.maxSimple)
+    ? `\nTope base alcanzado: ${formatNumber(tipo.maxSimple)}.`
     : "";
   return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(rawTotal)}${capNote}\nSubtotal: ${formatNumber(docentesTipoScore(tipo, postulanteId, cargas))}`;
 }
@@ -1243,8 +1257,8 @@ function cientificosTipoExplanation(tipo, postulanteId, cargas = state.anteceden
     });
   const raw = cientificosTipoRawScore(tipo, postulanteId, cargas);
   const capped = cientificosTipoScore(tipo, postulanteId, cargas);
-  const capNote = raw > Number(tipo.maxInterno || 0)
-    ? `\nSe aplica el tope interno de ${formatNumber(tipo.maxInterno)}.`
+  const capNote = scoreReachesCap(raw, tipo.maxInterno)
+    ? `\nTope interno alcanzado: ${formatNumber(tipo.maxInterno)}.`
     : "";
   return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(raw)}${capNote}\nSubtotal: ${formatNumber(capped)}`;
 }
@@ -1317,8 +1331,8 @@ function extensionTipoExplanation(tipo, postulanteId, cargas = state.antecedente
     });
   const raw = extensionTipoRawScore(tipo, postulanteId, cargas);
   const capped = extensionTipoScore(tipo, postulanteId, cargas);
-  const capNote = raw > Number(tipo.maxInterno || 0)
-    ? `\nSe aplica el tope interno de ${formatNumber(tipo.maxInterno)}.`
+  const capNote = scoreReachesCap(raw, tipo.maxInterno)
+    ? `\nTope interno alcanzado: ${formatNumber(tipo.maxInterno)}.`
     : "";
   return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(raw)}${capNote}\nSubtotal: ${formatNumber(capped)}`;
 }
@@ -1392,8 +1406,8 @@ function profesionalesTipoExplanation(tipo, postulanteId, cargas = state.anteced
     });
   const raw = profesionalesTipoRawScore(tipo, postulanteId, cargas);
   const capped = profesionalesTipoScore(tipo, postulanteId, cargas);
-  const capNote = raw > Number(tipo.maxInterno || 0)
-    ? `\nSe aplica el tope interno de ${formatNumber(tipo.maxInterno)}.`
+  const capNote = scoreReachesCap(raw, tipo.maxInterno)
+    ? `\nTope interno alcanzado: ${formatNumber(tipo.maxInterno)}.`
     : "";
   return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(raw)}${capNote}\nSubtotal: ${formatNumber(capped)}`;
 }
@@ -1473,8 +1487,8 @@ function otrosTipoExplanation(tipo, postulanteId, cargas = state.otrosAntecedent
     });
   const raw = otrosTipoRawScore(tipo, postulanteId, cargas);
   const capped = otrosTipoScore(tipo, postulanteId, cargas);
-  const capNote = raw > Number(tipo.maxInterno || 0)
-    ? `\nSe aplica el tope interno de ${formatNumber(tipo.maxInterno)}.`
+  const capNote = scoreReachesCap(raw, tipo.maxInterno)
+    ? `\nTope interno alcanzado: ${formatNumber(tipo.maxInterno)}.`
     : "";
   return `${lines.length ? lines.join("\n") : "Sin antecedentes cargados."}\nSuma: ${formatNumber(raw)}${capNote}\nSubtotal: ${formatNumber(capped)}`;
 }
@@ -1498,7 +1512,7 @@ function otrosInternalExplanation(postulanteId, cargas = state.otrosAntecedentes
     return `${tipo.nombre}: ${formatNumber(otrosTipoScore(tipo, postulanteId, cargas))}`;
   });
   const raw = otrosInternalRawScore(postulanteId, cargas);
-  const capNote = raw > otrosInternalMax() ? `\nSe aplica el tope general de ${formatNumber(otrosInternalMax())}.` : "";
+  const capNote = scoreReachesCap(raw, otrosInternalMax()) ? `\nTope general alcanzado: ${formatNumber(otrosInternalMax())}.` : "";
   return `${lines.join("\n")}\nSuma de bloques: ${formatNumber(raw)}${capNote}\nTotal interno: ${formatNumber(otrosInternalScore(postulanteId, cargas))} sobre ${formatNumber(otrosInternalMax())}`;
 }
 
@@ -1920,19 +1934,19 @@ function renderEvaluadores() {
     </tr>
   `).join("");
   const scoreCells = state.postulantes.map((postulante) => `
-    <td class="score-cell"><strong data-score-postulante="${postulante.id}" ${calculationAttribute(notaEvaluadorExplanation(evaluador, postulante.id))}>${formatNumber(notaEvaluador(evaluador, postulante.id))}</strong></td>
+    <td class="score-cell"><strong class="${saturationClass(notaEvaluador(evaluador, postulante.id), getOposicionMaxSimple()).trim()}" data-score-postulante="${postulante.id}" ${calculationAttribute(notaEvaluadorExplanation(evaluador, postulante.id))}>${formatNumber(notaEvaluador(evaluador, postulante.id))}</strong></td>
   `).join("");
   const exclusiveScoreCells = state.postulantes.map((postulante) => `
-    <td class="score-cell result-exclusiva"><strong data-exclusive-score-postulante="${postulante.id}" ${calculationAttribute(`${formatNumber(notaEvaluador(evaluador, postulante.id))} Simple × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}`)}>${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}</strong></td>
+    <td class="score-cell result-exclusiva"><strong class="${saturationClass(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)), getOposicionMaxExclusiva()).trim()}" data-exclusive-score-postulante="${postulante.id}" ${calculationAttribute(`${formatNumber(notaEvaluador(evaluador, postulante.id))} Simple × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}`)}>${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}</strong></td>
   `).join("");
   const simpleAverageCells = state.postulantes.map((postulante) => `
     <td class="score-cell result-simple">
-      <strong data-simple-average-postulante="${postulante.id}" ${calculationAttribute(promedioOposicionExplanation(postulante.id))}>${postulante.simple ? formatNumber(promedioOposicion(postulante.id)) : "—"}</strong>
+      <strong class="${postulante.simple ? saturationClass(promedioOposicion(postulante.id), getOposicionMaxSimple()).trim() : ""}" data-simple-average-postulante="${postulante.id}" ${calculationAttribute(promedioOposicionExplanation(postulante.id))}>${postulante.simple ? formatNumber(promedioOposicion(postulante.id)) : "—"}</strong>
     </td>
   `).join("");
   const exclusiveAverageCells = state.postulantes.map((postulante) => `
     <td class="score-cell result-exclusiva">
-      <strong data-exclusive-average-postulante="${postulante.id}" ${calculationAttribute(`${promedioOposicionExplanation(postulante.id)}\n\nConversión Exclusiva: ${formatNumber(promedioOposicion(postulante.id))} × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(promedioOposicion(postulante.id)))}`)}>${postulante.exclusiva ? formatNumber(notaExclusivaDesdeSimple(promedioOposicion(postulante.id))) : "—"}</strong>
+      <strong class="${postulante.exclusiva ? saturationClass(notaExclusivaDesdeSimple(promedioOposicion(postulante.id)), getOposicionMaxExclusiva()).trim() : ""}" data-exclusive-average-postulante="${postulante.id}" ${calculationAttribute(`${promedioOposicionExplanation(postulante.id)}\n\nConversión Exclusiva: ${formatNumber(promedioOposicion(postulante.id))} × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(promedioOposicion(postulante.id)))}`)}>${postulante.exclusiva ? formatNumber(notaExclusivaDesdeSimple(promedioOposicion(postulante.id))) : "—"}</strong>
     </td>
   `).join("");
 
@@ -1993,17 +2007,21 @@ function renderEvaluadores() {
       const evaluatorScore = notaEvaluador(state.oposicion.evaluadores[Number(event.target.dataset.eval)], event.target.dataset.postulanteId);
       score.textContent = formatNumber(evaluatorScore);
       updateCalculation(score, notaEvaluadorExplanation(state.oposicion.evaluadores[Number(event.target.dataset.eval)], event.target.dataset.postulanteId));
+      updateSaturation(score, evaluatorScore, getOposicionMaxSimple());
       const exclusiveScore = container.querySelector(`[data-exclusive-score-postulante="${event.target.dataset.postulanteId}"]`);
       exclusiveScore.textContent = formatNumber(notaExclusivaDesdeSimple(evaluatorScore));
       updateCalculation(exclusiveScore, `${formatNumber(evaluatorScore)} Simple × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${exclusiveScore.textContent}`);
+      updateSaturation(exclusiveScore, notaExclusivaDesdeSimple(evaluatorScore), getOposicionMaxExclusiva());
       const postulante = state.postulantes.find((item) => item.id === event.target.dataset.postulanteId);
       const averageScore = promedioOposicion(event.target.dataset.postulanteId);
       const simpleAverage = container.querySelector(`[data-simple-average-postulante="${event.target.dataset.postulanteId}"]`);
       simpleAverage.textContent = postulante.simple ? formatNumber(averageScore) : "—";
       updateCalculation(simpleAverage, promedioOposicionExplanation(event.target.dataset.postulanteId));
+      updateSaturation(simpleAverage, postulante.simple ? averageScore : 0, getOposicionMaxSimple());
       const exclusiveAverage = container.querySelector(`[data-exclusive-average-postulante="${event.target.dataset.postulanteId}"]`);
       exclusiveAverage.textContent = postulante.exclusiva ? formatNumber(notaExclusivaDesdeSimple(averageScore)) : "—";
       updateCalculation(exclusiveAverage, `${promedioOposicionExplanation(event.target.dataset.postulanteId)}\n\nConversión Exclusiva: ${formatNumber(averageScore)} × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(averageScore))}`);
+      updateSaturation(exclusiveAverage, postulante.exclusiva ? notaExclusivaDesdeSimple(averageScore) : 0, getOposicionMaxExclusiva());
     });
   });
 }
@@ -2460,7 +2478,7 @@ function renderDocentesMatrix() {
       <tr class="teaching-subtotal-row">
         <th class="matrix-label">Subtotal ${tipo.nombre}</th>
         ${state.postulantes.map((postulante) => `
-          <td class="score-cell"><strong data-doc-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(docentesTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(docentesTipoScore(tipo, postulante.id, cargas))}</strong></td>
+          <td class="score-cell"><strong class="${saturationClass(docentesTipoRawScore(tipo, postulante.id, cargas), tipo.maxSimple).trim()}" data-doc-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(docentesTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(docentesTipoScore(tipo, postulante.id, cargas))}</strong></td>
         `).join("")}
       </tr>
     `;
@@ -2504,19 +2522,19 @@ function renderDocentesMatrix() {
           <tr class="teaching-total-row">
             <th class="matrix-label">Puntaje base total <span>Escala de ${formatNumber(docentesInternalMax())} puntos</span></th>
             ${state.postulantes.map((postulante) => `
-              <td class="score-cell"><strong data-doc-internal="${postulante.id}" ${calculationAttribute(docentesInternalExplanation(postulante.id, cargas))}>${formatNumber(docentesInternalScore(postulante.id, cargas))}</strong></td>
+              <td class="score-cell"><strong class="${saturationClass(docentesInternalScore(postulante.id, cargas), docentesInternalMax()).trim()}" data-doc-internal="${postulante.id}" ${calculationAttribute(docentesInternalExplanation(postulante.id, cargas))}>${formatNumber(docentesInternalScore(postulante.id, cargas))}</strong></td>
             `).join("")}
           </tr>
           <tr class="teaching-total-row">
             <th class="matrix-label">Total Simple relativizado <span>Máximo acordado ${formatNumber(getDocentesMaxSimple())}</span></th>
             ${state.postulantes.map((postulante) => `
-              <td class="score-cell result-simple"><strong data-doc-simple="${postulante.id}" ${calculationAttribute(docentesRelativizedExplanationFromCargas(postulante.id, getDocentesMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(docentesRelativizedValue(docentesInternalScore(postulante.id, cargas), getDocentesMaxSimple())) : "—"}</strong></td>
+              <td class="score-cell result-simple"><strong class="${postulante.simple ? saturationClass(docentesInternalScore(postulante.id, cargas), docentesInternalMax()).trim() : ""}" data-doc-simple="${postulante.id}" ${calculationAttribute(docentesRelativizedExplanationFromCargas(postulante.id, getDocentesMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(docentesRelativizedValue(docentesInternalScore(postulante.id, cargas), getDocentesMaxSimple())) : "—"}</strong></td>
             `).join("")}
           </tr>
           <tr class="teaching-total-row">
             <th class="matrix-label">Total Exclusiva relativizado <span>Máximo acordado ${formatNumber(getDocentesMaxExclusiva())}</span></th>
             ${state.postulantes.map((postulante) => `
-              <td class="score-cell result-exclusiva"><strong data-doc-exclusive="${postulante.id}" ${calculationAttribute(docentesRelativizedExplanationFromCargas(postulante.id, getDocentesMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(docentesRelativizedValue(docentesInternalScore(postulante.id, cargas), getDocentesMaxExclusiva())) : "—"}</strong></td>
+              <td class="score-cell result-exclusiva"><strong class="${postulante.exclusiva ? saturationClass(docentesInternalScore(postulante.id, cargas), docentesInternalMax()).trim() : ""}" data-doc-exclusive="${postulante.id}" ${calculationAttribute(docentesRelativizedExplanationFromCargas(postulante.id, getDocentesMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(docentesRelativizedValue(docentesInternalScore(postulante.id, cargas), getDocentesMaxExclusiva())) : "—"}</strong></td>
             `).join("")}
           </tr>
           </tbody>
@@ -2563,6 +2581,7 @@ function updateDocentesCandidate(postulanteId, cargas = state.antecedentesDocent
     if (subtotal) {
       subtotal.textContent = formatNumber(docentesTipoScore(tipo, postulanteId, cargas));
       updateCalculation(subtotal, docentesTipoExplanation(tipo, postulanteId, cargas));
+      updateSaturation(subtotal, docentesTipoRawScore(tipo, postulanteId, cargas), tipo.maxSimple);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -2573,14 +2592,17 @@ function updateDocentesCandidate(postulanteId, cargas = state.antecedentesDocent
   if (internal) {
     internal.textContent = formatNumber(internalScore);
     updateCalculation(internal, docentesInternalExplanation(postulanteId, cargas));
+    updateSaturation(internal, internalScore, docentesInternalMax());
   }
   if (simple) {
     simple.textContent = postulante.simple ? formatNumber(docentesRelativizedValue(internalScore, getDocentesMaxSimple())) : "—";
     updateCalculation(simple, docentesRelativizedExplanationFromCargas(postulanteId, getDocentesMaxSimple(), "Simple", cargas));
+    updateSaturation(simple, postulante.simple ? internalScore : 0, docentesInternalMax());
   }
   if (exclusive) {
     exclusive.textContent = postulante.exclusiva ? formatNumber(docentesRelativizedValue(internalScore, getDocentesMaxExclusiva())) : "—";
     updateCalculation(exclusive, docentesRelativizedExplanationFromCargas(postulanteId, getDocentesMaxExclusiva(), "Exclusiva", cargas));
+    updateSaturation(exclusive, postulante.exclusiva ? internalScore : 0, docentesInternalMax());
   }
 }
 
@@ -2850,15 +2872,16 @@ function restoreCientificosDefaults() {
   render();
 }
 
-function publicationCellContent(group, postulante, cargas) {
+function publicationCellContent(tipo, group, postulante, cargas) {
   const count = scientificPublicationGroupCount(group, postulante.id, cargas);
   const internal = scientificPublicationGroupScore(group, postulante.id, cargas);
   const simple = cientificosRelativizedValue(internal, getCientificosMaxSimple());
   const exclusive = cientificosRelativizedValue(internal, getCientificosMaxExclusiva());
+  const saturated = (postulante.simple || postulante.exclusiva) && scoreReachesCap(internal, tipo.maxInterno);
   return `
     ${count
       ? `<span class="publication-cell-count">${formatNumber(count, Number.isInteger(count) ? 0 : 2)} pub.</span>
-         <span class="publication-cell-scores">S ${postulante.simple ? formatNumber(simple) : "—"} · E ${postulante.exclusiva ? formatNumber(exclusive) : "—"}</span>`
+         <span class="publication-cell-scores${saturated ? " is-saturated" : ""}">${saturated ? '<span class="visually-hidden">Tope alcanzado. </span>' : ""}S ${postulante.simple ? formatNumber(simple) : "—"} · E ${postulante.exclusiva ? formatNumber(exclusive) : "—"}</span>`
       : `<span class="publication-cell-empty" aria-hidden="true"></span>`}
   `;
 }
@@ -2866,6 +2889,14 @@ function publicationCellContent(group, postulante, cargas) {
 function publicationCountText(count) {
   const formatted = formatNumber(count, Number.isInteger(count) ? 0 : 2);
   return `${formatted} ${count === 1 ? "publicación" : "publicaciones"}`;
+}
+
+function publicationCellExplanation(tipo, group, postulanteId, cargas) {
+  const score = scientificPublicationGroupScore(group, postulanteId, cargas);
+  const capNote = scoreReachesCap(score, tipo.maxInterno)
+    ? `\nTope del bloque alcanzado: ${formatNumber(tipo.maxInterno)}.`
+    : "";
+  return `${scientificPublicationGroupExplanation(group, postulanteId, cargas)}${capNote}`;
 }
 
 function publicationMatrixRows(tipo, cargas, module) {
@@ -2877,12 +2908,12 @@ function publicationMatrixRows(tipo, cargas, module) {
           ? scientificPublicationGroupDifference(module, postulante.id, group)
           : { differs: false, explanation: "" };
         const explanation = difference.differs
-          ? `${scientificPublicationGroupExplanation(group, postulante.id, cargas)}\n\nDiferencia entre evaluadores:\n${difference.explanation}`
-          : scientificPublicationGroupExplanation(group, postulante.id, cargas);
+          ? `${publicationCellExplanation(tipo, group, postulante.id, cargas)}\n\nDiferencia entre evaluadores:\n${difference.explanation}`
+          : publicationCellExplanation(tipo, group, postulante.id, cargas);
         return `
           <td class="publication-compact-cell${difference.differs ? " has-difference" : ""}">
             <button type="button" class="publication-cell-button" data-open-publication="${group.id}:${postulante.id}" aria-label="Editar ${escapeAttribute(group.nombre)} de ${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}" ${calculationAttribute(explanation)}>
-              ${publicationCellContent(group, postulante, cargas)}
+              ${publicationCellContent(tipo, group, postulante, cargas)}
             </button>
           </td>
         `;
@@ -2891,11 +2922,11 @@ function publicationMatrixRows(tipo, cargas, module) {
   `).join("");
 }
 
-function updatePublicationCell(group, postulante, cargas) {
+function updatePublicationCell(tipo, group, postulante, cargas) {
   const button = document.querySelector(`[data-open-publication="${group.id}:${postulante.id}"]`);
   if (!button) return;
-  button.innerHTML = publicationCellContent(group, postulante, cargas);
-  updateCalculation(button, scientificPublicationGroupExplanation(group, postulante.id, cargas));
+  button.innerHTML = publicationCellContent(tipo, group, postulante, cargas);
+  updateCalculation(button, publicationCellExplanation(tipo, group, postulante.id, cargas));
 }
 
 function openPublicationEditor(tipo, group, postulante, cargas, module) {
@@ -2948,7 +2979,7 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
         syncConsolidatedAntecedentField(module, postulante.id, subitemId);
       }
       refreshSummary();
-      updatePublicationCell(group, postulante, cargas);
+      updatePublicationCell(tipo, group, postulante, cargas);
       updateCientificosCandidate(postulante.id, cargas);
       renderResultados();
       renderMerit();
@@ -3018,7 +3049,7 @@ function renderCientificosMatrix() {
             <tr class="teaching-subtotal-row">
               <th class="matrix-label">Subtotal ${tipo.nombre}<span>Se aplica el tope de ${formatNumber(tipo.maxInterno)}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-cien-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(cientificosTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(cientificosTipoScore(tipo, postulante.id, cargas))}</strong></td>
+                <td class="score-cell"><strong class="${saturationClass(cientificosTipoRawScore(tipo, postulante.id, cargas), tipo.maxInterno).trim()}" data-cien-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(cientificosTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(cientificosTipoScore(tipo, postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -3042,19 +3073,19 @@ function renderCientificosMatrix() {
           <tr class="teaching-total-row">
             <th class="matrix-label">Total interno <span>Escala de ${formatNumber(cientificosInternalMax())} puntos</span></th>
             ${state.postulantes.map((postulante) => `
-              <td class="score-cell"><strong data-cien-internal="${postulante.id}" ${calculationAttribute(cientificosInternalExplanation(postulante.id, cargas))}>${formatNumber(cientificosInternalScore(postulante.id, cargas))}</strong></td>
+              <td class="score-cell"><strong class="${saturationClass(cientificosInternalScore(postulante.id, cargas), cientificosInternalMax()).trim()}" data-cien-internal="${postulante.id}" ${calculationAttribute(cientificosInternalExplanation(postulante.id, cargas))}>${formatNumber(cientificosInternalScore(postulante.id, cargas))}</strong></td>
             `).join("")}
           </tr>
           <tr class="teaching-total-row">
             <th class="matrix-label">Total Simple relativizado <span>Máximo acordado ${formatNumber(getCientificosMaxSimple())}</span></th>
             ${state.postulantes.map((postulante) => `
-              <td class="score-cell result-simple"><strong data-cien-simple="${postulante.id}" ${calculationAttribute(cientificosRelativizedExplanationFromCargas(postulante.id, getCientificosMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(cientificosRelativizedValue(cientificosInternalScore(postulante.id, cargas), getCientificosMaxSimple())) : "—"}</strong></td>
+              <td class="score-cell result-simple"><strong class="${postulante.simple ? saturationClass(cientificosInternalScore(postulante.id, cargas), cientificosInternalMax()).trim() : ""}" data-cien-simple="${postulante.id}" ${calculationAttribute(cientificosRelativizedExplanationFromCargas(postulante.id, getCientificosMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(cientificosRelativizedValue(cientificosInternalScore(postulante.id, cargas), getCientificosMaxSimple())) : "—"}</strong></td>
             `).join("")}
           </tr>
           <tr class="teaching-total-row">
             <th class="matrix-label">Total Exclusiva relativizado <span>Máximo acordado ${formatNumber(getCientificosMaxExclusiva())}</span></th>
             ${state.postulantes.map((postulante) => `
-              <td class="score-cell result-exclusiva"><strong data-cien-exclusive="${postulante.id}" ${calculationAttribute(cientificosRelativizedExplanationFromCargas(postulante.id, getCientificosMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(cientificosRelativizedValue(cientificosInternalScore(postulante.id, cargas), getCientificosMaxExclusiva())) : "—"}</strong></td>
+              <td class="score-cell result-exclusiva"><strong class="${postulante.exclusiva ? saturationClass(cientificosInternalScore(postulante.id, cargas), cientificosInternalMax()).trim() : ""}" data-cien-exclusive="${postulante.id}" ${calculationAttribute(cientificosRelativizedExplanationFromCargas(postulante.id, getCientificosMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(cientificosRelativizedValue(cientificosInternalScore(postulante.id, cargas), getCientificosMaxExclusiva())) : "—"}</strong></td>
             `).join("")}
           </tr>
         </tbody>
@@ -3102,6 +3133,7 @@ function updateCientificosCandidate(postulanteId, cargas = state.antecedentesCie
     if (subtotal) {
       subtotal.textContent = formatNumber(cientificosTipoScore(tipo, postulanteId, cargas));
       updateCalculation(subtotal, cientificosTipoExplanation(tipo, postulanteId, cargas));
+      updateSaturation(subtotal, cientificosTipoRawScore(tipo, postulanteId, cargas), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -3112,14 +3144,17 @@ function updateCientificosCandidate(postulanteId, cargas = state.antecedentesCie
   if (internal) {
     internal.textContent = formatNumber(internalScore);
     updateCalculation(internal, cientificosInternalExplanation(postulanteId, cargas));
+    updateSaturation(internal, internalScore, cientificosInternalMax());
   }
   if (simple) {
     simple.textContent = postulante.simple ? formatNumber(cientificosRelativizedValue(internalScore, getCientificosMaxSimple())) : "—";
     updateCalculation(simple, cientificosRelativizedExplanationFromCargas(postulanteId, getCientificosMaxSimple(), "Simple", cargas));
+    updateSaturation(simple, postulante.simple ? internalScore : 0, cientificosInternalMax());
   }
   if (exclusive) {
     exclusive.textContent = postulante.exclusiva ? formatNumber(cientificosRelativizedValue(internalScore, getCientificosMaxExclusiva())) : "—";
     updateCalculation(exclusive, cientificosRelativizedExplanationFromCargas(postulanteId, getCientificosMaxExclusiva(), "Exclusiva", cargas));
+    updateSaturation(exclusive, postulante.exclusiva ? internalScore : 0, cientificosInternalMax());
   }
 }
 
@@ -3342,7 +3377,7 @@ function renderExtensionMatrix() {
             <tr class="teaching-subtotal-row">
               <th class="matrix-label">Subtotal ${tipo.nombre}<span>Se aplica el tope de ${formatNumber(tipo.maxInterno)}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-ext-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(extensionTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(extensionTipoScore(tipo, postulante.id, cargas))}</strong></td>
+                <td class="score-cell"><strong class="${saturationClass(extensionTipoRawScore(tipo, postulante.id, cargas), tipo.maxInterno).trim()}" data-ext-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(extensionTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(extensionTipoScore(tipo, postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -3366,19 +3401,19 @@ function renderExtensionMatrix() {
             <tr class="teaching-total-row">
               <th class="matrix-label">Total interno <span>Escala de ${formatNumber(extensionInternalMax())} puntos</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-ext-internal="${postulante.id}" ${calculationAttribute(extensionInternalExplanation(postulante.id, cargas))}>${formatNumber(extensionInternalScore(postulante.id, cargas))}</strong></td>
+                <td class="score-cell"><strong class="${saturationClass(extensionInternalScore(postulante.id, cargas), extensionInternalMax()).trim()}" data-ext-internal="${postulante.id}" ${calculationAttribute(extensionInternalExplanation(postulante.id, cargas))}>${formatNumber(extensionInternalScore(postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
             <tr class="teaching-total-row">
               <th class="matrix-label">Total Simple relativizado <span>Máximo acordado ${formatNumber(getExtensionMaxSimple())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell result-simple"><strong data-ext-simple="${postulante.id}" ${calculationAttribute(extensionRelativizedExplanationFromCargas(postulante.id, getExtensionMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(extensionRelativizedValue(extensionInternalScore(postulante.id, cargas), getExtensionMaxSimple())) : "—"}</strong></td>
+                <td class="score-cell result-simple"><strong class="${postulante.simple ? saturationClass(extensionInternalScore(postulante.id, cargas), extensionInternalMax()).trim() : ""}" data-ext-simple="${postulante.id}" ${calculationAttribute(extensionRelativizedExplanationFromCargas(postulante.id, getExtensionMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(extensionRelativizedValue(extensionInternalScore(postulante.id, cargas), getExtensionMaxSimple())) : "—"}</strong></td>
               `).join("")}
             </tr>
             <tr class="teaching-total-row">
               <th class="matrix-label">Total Exclusiva relativizado <span>Máximo acordado ${formatNumber(getExtensionMaxExclusiva())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell result-exclusiva"><strong data-ext-exclusive="${postulante.id}" ${calculationAttribute(extensionRelativizedExplanationFromCargas(postulante.id, getExtensionMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(extensionRelativizedValue(extensionInternalScore(postulante.id, cargas), getExtensionMaxExclusiva())) : "—"}</strong></td>
+                <td class="score-cell result-exclusiva"><strong class="${postulante.exclusiva ? saturationClass(extensionInternalScore(postulante.id, cargas), extensionInternalMax()).trim() : ""}" data-ext-exclusive="${postulante.id}" ${calculationAttribute(extensionRelativizedExplanationFromCargas(postulante.id, getExtensionMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(extensionRelativizedValue(extensionInternalScore(postulante.id, cargas), getExtensionMaxExclusiva())) : "—"}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -3412,6 +3447,7 @@ function updateExtensionCandidate(postulanteId) {
     if (subtotal) {
       subtotal.textContent = formatNumber(extensionTipoScore(tipo, postulanteId));
       updateCalculation(subtotal, extensionTipoExplanation(tipo, postulanteId));
+      updateSaturation(subtotal, extensionTipoRawScore(tipo, postulanteId), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -3421,14 +3457,17 @@ function updateExtensionCandidate(postulanteId) {
   if (internal) {
     internal.textContent = formatNumber(extensionInternalScore(postulanteId));
     updateCalculation(internal, extensionInternalExplanation(postulanteId));
+    updateSaturation(internal, extensionInternalScore(postulanteId), extensionInternalMax());
   }
   if (simple) {
     simple.textContent = postulante.simple ? formatNumber(extensionSimpleScore(postulanteId)) : "—";
     updateCalculation(simple, extensionRelativizedExplanation(postulanteId, getExtensionMaxSimple(), "Simple"));
+    updateSaturation(simple, postulante.simple ? extensionInternalScore(postulanteId) : 0, extensionInternalMax());
   }
   if (exclusive) {
     exclusive.textContent = postulante.exclusiva ? formatNumber(extensionExclusiveScore(postulanteId)) : "—";
     updateCalculation(exclusive, extensionRelativizedExplanation(postulanteId, getExtensionMaxExclusiva(), "Exclusiva"));
+    updateSaturation(exclusive, postulante.exclusiva ? extensionInternalScore(postulanteId) : 0, extensionInternalMax());
   }
 }
 
@@ -3649,7 +3688,7 @@ function renderProfesionalesMatrix() {
             <tr class="teaching-subtotal-row">
               <th class="matrix-label">Subtotal ${tipo.nombre}<span>Se aplica el tope de ${formatNumber(tipo.maxInterno)}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-prof-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(profesionalesTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(profesionalesTipoScore(tipo, postulante.id, cargas))}</strong></td>
+                <td class="score-cell"><strong class="${saturationClass(profesionalesTipoRawScore(tipo, postulante.id, cargas), tipo.maxInterno).trim()}" data-prof-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(profesionalesTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(profesionalesTipoScore(tipo, postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -3673,19 +3712,19 @@ function renderProfesionalesMatrix() {
             <tr class="teaching-total-row">
               <th class="matrix-label">Total interno <span>Escala de ${formatNumber(profesionalesInternalMax())} puntos</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-prof-internal="${postulante.id}" ${calculationAttribute(profesionalesInternalExplanation(postulante.id, cargas))}>${formatNumber(profesionalesInternalScore(postulante.id, cargas))}</strong></td>
+              <td class="score-cell"><strong class="${saturationClass(profesionalesInternalScore(postulante.id, cargas), profesionalesInternalMax()).trim()}" data-prof-internal="${postulante.id}" ${calculationAttribute(profesionalesInternalExplanation(postulante.id, cargas))}>${formatNumber(profesionalesInternalScore(postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
             <tr class="teaching-total-row">
               <th class="matrix-label">Total Simple relativizado <span>Máximo acordado ${formatNumber(getProfesionalesMaxSimple())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell result-simple"><strong data-prof-simple="${postulante.id}" ${calculationAttribute(profesionalesRelativizedExplanationFromCargas(postulante.id, getProfesionalesMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(profesionalesRelativizedValue(profesionalesInternalScore(postulante.id, cargas), getProfesionalesMaxSimple())) : "—"}</strong></td>
+              <td class="score-cell result-simple"><strong class="${postulante.simple ? saturationClass(profesionalesInternalScore(postulante.id, cargas), profesionalesInternalMax()).trim() : ""}" data-prof-simple="${postulante.id}" ${calculationAttribute(profesionalesRelativizedExplanationFromCargas(postulante.id, getProfesionalesMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(profesionalesRelativizedValue(profesionalesInternalScore(postulante.id, cargas), getProfesionalesMaxSimple())) : "—"}</strong></td>
               `).join("")}
             </tr>
             <tr class="teaching-total-row">
               <th class="matrix-label">Total Exclusiva relativizado <span>Máximo acordado ${formatNumber(getProfesionalesMaxExclusiva())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell result-exclusiva"><strong data-prof-exclusive="${postulante.id}" ${calculationAttribute(profesionalesRelativizedExplanationFromCargas(postulante.id, getProfesionalesMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(profesionalesRelativizedValue(profesionalesInternalScore(postulante.id, cargas), getProfesionalesMaxExclusiva())) : "—"}</strong></td>
+              <td class="score-cell result-exclusiva"><strong class="${postulante.exclusiva ? saturationClass(profesionalesInternalScore(postulante.id, cargas), profesionalesInternalMax()).trim() : ""}" data-prof-exclusive="${postulante.id}" ${calculationAttribute(profesionalesRelativizedExplanationFromCargas(postulante.id, getProfesionalesMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(profesionalesRelativizedValue(profesionalesInternalScore(postulante.id, cargas), getProfesionalesMaxExclusiva())) : "—"}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -3719,6 +3758,7 @@ function updateProfesionalesCandidate(postulanteId) {
     if (subtotal) {
       subtotal.textContent = formatNumber(profesionalesTipoScore(tipo, postulanteId));
       updateCalculation(subtotal, profesionalesTipoExplanation(tipo, postulanteId));
+      updateSaturation(subtotal, profesionalesTipoRawScore(tipo, postulanteId), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -3728,14 +3768,17 @@ function updateProfesionalesCandidate(postulanteId) {
   if (internal) {
     internal.textContent = formatNumber(profesionalesInternalScore(postulanteId));
     updateCalculation(internal, profesionalesInternalExplanation(postulanteId));
+    updateSaturation(internal, profesionalesInternalScore(postulanteId), profesionalesInternalMax());
   }
   if (simple) {
     simple.textContent = postulante.simple ? formatNumber(profesionalesSimpleScore(postulanteId)) : "—";
     updateCalculation(simple, profesionalesRelativizedExplanation(postulanteId, getProfesionalesMaxSimple(), "Simple"));
+    updateSaturation(simple, postulante.simple ? profesionalesInternalScore(postulanteId) : 0, profesionalesInternalMax());
   }
   if (exclusive) {
     exclusive.textContent = postulante.exclusiva ? formatNumber(profesionalesExclusiveScore(postulanteId)) : "—";
     updateCalculation(exclusive, profesionalesRelativizedExplanation(postulanteId, getProfesionalesMaxExclusiva(), "Exclusiva"));
+    updateSaturation(exclusive, postulante.exclusiva ? profesionalesInternalScore(postulanteId) : 0, profesionalesInternalMax());
   }
 }
 
@@ -3967,7 +4010,7 @@ function renderOtrosMatrix() {
             <tr class="teaching-subtotal-row">
               <th class="matrix-label">Subtotal ${tipo.nombre}<span>Se aplica el tope de ${formatNumber(tipo.maxInterno)}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-otros-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(otrosTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(otrosTipoScore(tipo, postulante.id, cargas))}</strong></td>
+                <td class="score-cell"><strong class="${saturationClass(otrosTipoRawScore(tipo, postulante.id, cargas), tipo.maxInterno).trim()}" data-otros-subtotal="${tipo.id}:${postulante.id}" ${calculationAttribute(otrosTipoExplanation(tipo, postulante.id, cargas))}>${formatNumber(otrosTipoScore(tipo, postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -3991,19 +4034,19 @@ function renderOtrosMatrix() {
             <tr class="teaching-total-row">
               <th class="matrix-label">Total interno <span>Tope general ${formatNumber(otrosInternalMax())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell"><strong data-otros-internal="${postulante.id}" ${calculationAttribute(otrosInternalExplanation(postulante.id, cargas))}>${formatNumber(otrosInternalScore(postulante.id, cargas))}</strong></td>
+                <td class="score-cell"><strong class="${saturationClass(otrosInternalRawScore(postulante.id, cargas), otrosInternalMax()).trim()}" data-otros-internal="${postulante.id}" ${calculationAttribute(otrosInternalExplanation(postulante.id, cargas))}>${formatNumber(otrosInternalScore(postulante.id, cargas))}</strong></td>
               `).join("")}
             </tr>
             <tr class="teaching-total-row">
               <th class="matrix-label">Total Simple relativizado <span>Máximo acordado ${formatNumber(getOtrosMaxSimple())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell result-simple"><strong data-otros-simple="${postulante.id}" ${calculationAttribute(otrosRelativizedExplanationFromCargas(postulante.id, getOtrosMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxSimple())) : "—"}</strong></td>
+                <td class="score-cell result-simple"><strong class="${postulante.simple ? saturationClass(otrosInternalRawScore(postulante.id, cargas), otrosInternalMax()).trim() : ""}" data-otros-simple="${postulante.id}" ${calculationAttribute(otrosRelativizedExplanationFromCargas(postulante.id, getOtrosMaxSimple(), "Simple", cargas))}>${postulante.simple ? formatNumber(otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxSimple())) : "—"}</strong></td>
               `).join("")}
             </tr>
             <tr class="teaching-total-row">
               <th class="matrix-label">Total Exclusiva relativizado <span>Máximo acordado ${formatNumber(getOtrosMaxExclusiva())}</span></th>
               ${state.postulantes.map((postulante) => `
-                <td class="score-cell result-exclusiva"><strong data-otros-exclusive="${postulante.id}" ${calculationAttribute(otrosRelativizedExplanationFromCargas(postulante.id, getOtrosMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxExclusiva())) : "—"}</strong></td>
+                <td class="score-cell result-exclusiva"><strong class="${postulante.exclusiva ? saturationClass(otrosInternalRawScore(postulante.id, cargas), otrosInternalMax()).trim() : ""}" data-otros-exclusive="${postulante.id}" ${calculationAttribute(otrosRelativizedExplanationFromCargas(postulante.id, getOtrosMaxExclusiva(), "Exclusiva", cargas))}>${postulante.exclusiva ? formatNumber(otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxExclusiva())) : "—"}</strong></td>
               `).join("")}
             </tr>
           </tbody>
@@ -4041,6 +4084,7 @@ function updateOtrosCandidate(postulanteId) {
     if (subtotal) {
       subtotal.textContent = formatNumber(otrosTipoScore(tipo, postulanteId));
       updateCalculation(subtotal, otrosTipoExplanation(tipo, postulanteId));
+      updateSaturation(subtotal, otrosTipoRawScore(tipo, postulanteId), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -4050,14 +4094,17 @@ function updateOtrosCandidate(postulanteId) {
   if (internal) {
     internal.textContent = formatNumber(otrosInternalScore(postulanteId));
     updateCalculation(internal, otrosInternalExplanation(postulanteId));
+    updateSaturation(internal, otrosInternalRawScore(postulanteId), otrosInternalMax());
   }
   if (simple) {
     simple.textContent = postulante.simple ? formatNumber(otrosSimpleScore(postulanteId)) : "—";
     updateCalculation(simple, otrosRelativizedExplanation(postulanteId, getOtrosMaxSimple(), "Simple"));
+    updateSaturation(simple, postulante.simple ? otrosInternalRawScore(postulanteId) : 0, otrosInternalMax());
   }
   if (exclusive) {
     exclusive.textContent = postulante.exclusiva ? formatNumber(otrosExclusiveScore(postulanteId)) : "—";
     updateCalculation(exclusive, otrosRelativizedExplanation(postulanteId, getOtrosMaxExclusiva(), "Exclusiva"));
+    updateSaturation(exclusive, postulante.exclusiva ? otrosInternalRawScore(postulanteId) : 0, otrosInternalMax());
   }
 }
 
@@ -4088,7 +4135,7 @@ function renderResultados() {
       <th class="results-label">${rubro.nombre}<span class="muted">Máximo acordado: ${formatNumber(rubro[resultsCargo])}</span></th>
       ${values.map((value, index) => `
         <td class="${resultsCargo === "simple" ? "result-simple" : "result-exclusiva"}">
-          <span ${calculationAttribute(explanations[index])}>${formatNumber(value)}</span>
+          <span class="${saturationClass(value, rubro[resultsCargo]).trim()}" ${calculationAttribute(explanations[index])}>${formatNumber(value)}</span>
         </td>
       `).join("")}
     `;
@@ -4109,7 +4156,7 @@ function renderResultados() {
           }));
         const total = contributions.reduce((sum, contribution) => sum + contribution.valor, 0);
         const explanation = `${contributions.map((item) => `${item.nombre}: ${formatNumber(item.valor)}`).join("\n")}\nTotal cargado: ${formatNumber(total)}`;
-        return `<td class="results-total"><span ${calculationAttribute(explanation)}>${formatNumber(total)}</span></td>`;
+        return `<td class="results-total"><span class="${saturationClass(total, totalMax).trim()}" ${calculationAttribute(explanation)}>${formatNumber(total)}</span></td>`;
       }).join("")}
     </tr>
   `;

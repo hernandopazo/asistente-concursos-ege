@@ -1240,6 +1240,11 @@ main {
   font-weight: 700;
 }
 
+.is-saturated-score {
+  color: var(--danger) !important;
+  font-weight: 800;
+}
+
 .publication-editor {
   width: min(660px, calc(100vw - 28px));
   max-height: min(720px, calc(100vh - 28px));
