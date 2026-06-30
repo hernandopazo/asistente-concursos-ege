@@ -591,26 +591,28 @@
     const evaluatorKey = currentMember.evaluator_key;
 
     const adminSelectors = [
-      "#config input",
       "#postulantes input",
       "#postulantes button",
       "#header-evaluators-list input",
       "#header-evaluators-list button",
       "#add-evaluador",
-      "#criteria-panel input",
-      "#criteria-panel button",
-      "#docentes-config-panel input",
-      "#docentes-config-panel button",
-      "#cientificos-config-panel input",
-      "#cientificos-config-panel button",
-      "#extension-config-panel input",
-      "#extension-config-panel button",
-      "#profesionales-config-panel input",
-      "#profesionales-config-panel button",
-      "#otros-config-panel input",
-      "#otros-config-panel button"
     ];
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));
+
+    const scoreConfigurationAreas = {
+      puntajes: "#config",
+      oposicion: "#criteria-panel",
+      docentes: "#docentes-config-panel",
+      cientificos: "#cientificos-config-panel",
+      extension: "#extension-config-panel",
+      profesionales: "#profesionales-config-panel",
+      otros: "#otros-config-panel"
+    };
+    Object.entries(scoreConfigurationAreas).forEach(([key, selector]) => {
+      const locked = window.isScoreConfigurationLocked?.(key) !== false;
+      setDisabled(`${selector} input, ${selector} select, ${selector} textarea, ${selector} button:not([data-score-lock])`, !isAdmin || locked);
+      setDisabled(`${selector} [data-score-lock]`, !isAdmin);
+    });
 
     setDisabled(
       "#evaluadores-list input, #evaluadores-list textarea",

@@ -203,8 +203,9 @@
         <div class="section-heading">
           <div>
             <h2>Puntajes generales configurados</h2>
-            <p>Los rangos permitidos son fijos por reglamento. Edite los puntajes acordados.</p>
+            <p>Los rangos permitidos son fijos por reglamento. Habilite la edición para modificar los puntajes acordados.</p>
           </div>
+          <button class="score-lock-button secondary-button" type="button" data-score-lock="puntajes">Habilitar edición</button>
         </div>
 
         <div class="table-shell">
@@ -322,9 +323,10 @@
           <div class="opposition-panel-heading">
             <div>
               <h3>Criterios y pesos</h3>
-              <p>Los criterios son comunes a todos los evaluadores. Podés agregar nuevos criterios o editar los existentes.</p>
+              <p>Los criterios son comunes a todos los evaluadores. Habilitá la edición para modificar esta configuración.</p>
             </div>
             <div class="section-actions">
+              <button class="score-lock-button secondary-button" type="button" data-score-lock="oposicion">Habilitar edición</button>
               <button id="restore-opposition-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
               <button id="add-criterio" class="primary-button" type="button">Agregar criterio</button>
             </div>
@@ -368,7 +370,10 @@
               <h3>Tipos de antecedentes y puntuación</h3>
               <p>Los valores corresponden al cargo Simple. Exclusiva se calcula proporcionalmente.</p>
             </div>
-            <button id="restore-docentes-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            <div class="section-actions">
+              <button class="score-lock-button secondary-button" type="button" data-score-lock="docentes">Habilitar edición</button>
+              <button id="restore-docentes-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            </div>
           </div>
           <div id="docentes-types-list" class="teaching-types"></div>
           <div id="docentes-config-summary" class="weight-summary"></div>
@@ -405,7 +410,10 @@
               <h3>Criterios científicos y puntuación</h3>
               <p>La escala interna proviene de la tabla original. Simple y Exclusiva se relativizan según Puntajes.</p>
             </div>
-            <button id="restore-cientificos-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            <div class="section-actions">
+              <button class="score-lock-button secondary-button" type="button" data-score-lock="cientificos">Habilitar edición</button>
+              <button id="restore-cientificos-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            </div>
           </div>
           <div id="cientificos-types-list" class="teaching-types"></div>
           <div id="cientificos-config-summary" class="weight-summary"></div>
@@ -442,7 +450,10 @@
               <h3>Tipos de antecedentes y puntuación</h3>
               <p>La escala interna proviene de la tabla original. Simple y Exclusiva se relativizan de forma independiente según Puntajes.</p>
             </div>
-            <button id="restore-extension-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            <div class="section-actions">
+              <button class="score-lock-button secondary-button" type="button" data-score-lock="extension">Habilitar edición</button>
+              <button id="restore-extension-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            </div>
           </div>
           <div id="extension-types-list" class="teaching-types"></div>
           <div id="extension-config-summary" class="weight-summary"></div>
@@ -479,7 +490,10 @@
               <h3>Tipos de antecedentes y puntuación</h3>
               <p>La escala interna proviene de la tabla original. Simple y Exclusiva se relativizan de forma independiente según Puntajes.</p>
             </div>
-            <button id="restore-profesionales-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            <div class="section-actions">
+              <button class="score-lock-button secondary-button" type="button" data-score-lock="profesionales">Habilitar edición</button>
+              <button id="restore-profesionales-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            </div>
           </div>
           <div id="profesionales-types-list" class="teaching-types"></div>
           <div id="profesionales-config-summary" class="weight-summary"></div>
@@ -516,7 +530,10 @@
               <h3>Tipos de antecedentes y puntuación</h3>
               <p>Los bloques tienen topes propios y el total aplica un segundo tope general. Simple y Exclusiva se relativizan de forma independiente.</p>
             </div>
-            <button id="restore-otros-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            <div class="section-actions">
+              <button class="score-lock-button secondary-button" type="button" data-score-lock="otros">Habilitar edición</button>
+              <button id="restore-otros-defaults" class="secondary-button" type="button">Restaurar criterios originales</button>
+            </div>
           </div>
           <div class="teaching-penalty-setting">
             <div>

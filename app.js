@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 20;
+const DATA_VERSION = 21;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -65,6 +65,15 @@ const initialState = {
   administrativeDetails: "",
   contestStartDate: "",
   contestEndDate: "",
+  scoreConfigurationLocks: {
+    puntajes: true,
+    oposicion: true,
+    docentes: true,
+    cientificos: true,
+    extension: true,
+    profesionales: true,
+    otros: true
+  },
   rubros: [
     { id: "docentes", nombre: "Antecedentes docentes", simpleMin: 15, simpleMax: 30, simple: 23.5, exclusivaMin: 12.5, exclusivaMax: 25, exclusiva: 21 },
     { id: "cientificos", nombre: "Antecedentes científicos", simpleMin: 12.5, simpleMax: 25, simple: 17, exclusivaMin: 25, exclusivaMax: 50, exclusiva: 33 },
@@ -625,6 +634,10 @@ function migrateState(savedState) {
   savedState.otrosAntecedentes.participacion ||= {};
   savedState.otrosAntecedentes.cargasEvaluadores ||= {};
   savedState.otrosAntecedentes.maxInternoTotal ??= initialState.otrosAntecedentes.maxInternoTotal;
+  savedState.scoreConfigurationLocks ||= {};
+  Object.keys(initialState.scoreConfigurationLocks).forEach((key) => {
+    savedState.scoreConfigurationLocks[key] ??= true;
+  });
   savedState.postulantes.forEach((postulante) => {
     postulante.dege = Boolean(postulante.dege);
     postulante.otroDepto = Boolean(postulante.otroDepto);
@@ -642,6 +655,51 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   window.collaboration?.scheduleSave?.();
 }
+
+const SCORE_CONFIGURATION_AREAS = {
+  puntajes: "#config",
+  oposicion: "#criteria-panel",
+  docentes: "#docentes-config-panel",
+  cientificos: "#cientificos-config-panel",
+  extension: "#extension-config-panel",
+  profesionales: "#profesionales-config-panel",
+  otros: "#otros-config-panel"
+};
+
+function isScoreConfigurationLocked(key) {
+  return state.scoreConfigurationLocks?.[key] !== false;
+}
+
+function applyScoreConfigurationLocks() {
+  Object.entries(SCORE_CONFIGURATION_AREAS).forEach(([key, selector]) => {
+    const panel = document.querySelector(selector);
+    const locked = isScoreConfigurationLocked(key);
+    panel?.classList.toggle("score-configuration-locked", locked);
+    panel?.querySelectorAll("input, select, textarea, button:not([data-score-lock])").forEach((control) => {
+      control.disabled = locked;
+    });
+
+    const button = document.querySelector(`[data-score-lock="${key}"]`);
+    if (!button) return;
+    button.textContent = locked ? "Habilitar edición" : "Bloquear edición";
+    button.classList.toggle("primary-button", locked);
+    button.classList.toggle("secondary-button", !locked);
+    button.dataset.locked = String(locked);
+    button.setAttribute("aria-pressed", String(!locked));
+    button.title = locked
+      ? "Permitir cambios en los criterios y puntajes de esta solapa"
+      : "Evitar cambios accidentales en los criterios y puntajes de esta solapa";
+  });
+}
+
+function toggleScoreConfigurationLock(key) {
+  state.scoreConfigurationLocks[key] = !isScoreConfigurationLocked(key);
+  saveState();
+  applyScoreConfigurationLocks();
+  window.collaboration?.applyPermissions?.();
+}
+
+window.isScoreConfigurationLocked = isScoreConfigurationLocked;
 
 function seedEvaluations(nextState) {
   renumberPostulantes(nextState);
@@ -1585,6 +1643,7 @@ function render() {
   renderExtensionView();
   renderProfesionalesView();
   renderOtrosView();
+  applyScoreConfigurationLocks();
   saveState();
   window.collaboration?.applyPermissions?.();
 }
@@ -4596,6 +4655,9 @@ document.addEventListener("change", (event) => {
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
+});
+document.querySelectorAll("[data-score-lock]").forEach((button) => {
+  button.addEventListener("click", () => toggleScoreConfigurationLock(button.dataset.scoreLock));
 });
 document.querySelector("#add-postulante").addEventListener("click", addPostulante);
 document.querySelector("#administrative-details").addEventListener("input", (event) => {
