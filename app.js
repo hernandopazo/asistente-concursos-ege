@@ -933,17 +933,19 @@ function pesoTotal() {
   return state.oposicion.criterios.reduce((total, criterio) => total + Number(criterio.peso || 0), 0);
 }
 
-function maxPesoPermitido() {
-  return getOposicionMaxSimple() / 10;
-}
-
-function notaEvaluador(evaluador, postulanteId) {
+function sumaPonderadaEvaluador(evaluador, postulanteId) {
   const evaluacion = evaluador.evaluaciones[postulanteId];
   if (!evaluacion) return 0;
   return state.oposicion.criterios.reduce((total, criterio) => {
     const nota = Number(evaluacion.notas[criterio.id] || 0);
     return total + Number(criterio.peso || 0) * nota;
   }, 0);
+}
+
+function notaEvaluador(evaluador, postulanteId) {
+  const totalPesos = pesoTotal();
+  if (!totalPesos) return 0;
+  return sumaPonderadaEvaluador(evaluador, postulanteId) * getOposicionMaxSimple() / (totalPesos * 10);
 }
 
 function notaEvaluadorExplanation(evaluador, postulanteId) {
@@ -953,7 +955,12 @@ function notaEvaluadorExplanation(evaluador, postulanteId) {
     const parcial = Number(criterio.peso || 0) * nota;
     return `${criterio.nombre}: ${formatNumber(criterio.peso, 1)} × ${formatNumber(nota, 1)} = ${formatNumber(parcial)}`;
   });
-  return `${lines.join("\n")}\nTotal: ${formatNumber(notaEvaluador(evaluador, postulanteId))}`;
+  const sumaPonderada = sumaPonderadaEvaluador(evaluador, postulanteId);
+  const totalPesos = pesoTotal();
+  const normalizacion = totalPesos
+    ? `${formatNumber(sumaPonderada)} × ${formatNumber(getOposicionMaxSimple())} ÷ (${formatNumber(totalPesos)} × 10) = ${formatNumber(notaEvaluador(evaluador, postulanteId))}`
+    : "No se puede calcular sin pesos asignados";
+  return `${lines.join("\n")}\nSuma ponderada: ${formatNumber(sumaPonderada)}\nNormalización Simple: ${normalizacion}`;
 }
 
 function notaExclusivaDesdeSimple(notaSimple) {
@@ -1856,21 +1863,18 @@ function restoreOppositionDefaults() {
 
 function renderPesoSummary() {
   const total = pesoTotal();
-  const max = maxPesoPermitido();
-  const difference = max - total;
-  const isExact = Math.abs(difference) < 0.001;
   const summary = document.querySelector("#peso-summary");
-  summary.className = `weight-summary${isExact ? "" : " error"}`;
-  updateCalculation(summary, `${state.oposicion.criterios.map((criterio) => `${criterio.nombre}: ${formatNumber(criterio.peso, 1)}`).join("\n")}\nSuma: ${formatNumber(total)}\nPermitido: ${formatNumber(getOposicionMaxSimple())} ÷ 10 = ${formatNumber(max)}`);
+  summary.className = "weight-summary";
+  updateCalculation(summary, `${state.oposicion.criterios.map((criterio) => `${criterio.nombre}: ${formatNumber(criterio.peso, 1)}`).join("\n")}\nSuma de pesos: ${formatNumber(total)}\nLas notas de 1 a 10 se normalizan a los máximos acordados.`);
   summary.tabIndex = 0;
   summary.innerHTML = `
     <span>
-      Suma de pesos: ${formatNumber(total)} / total requerido: ${formatNumber(max)}
-      <small>Base Simple: ${formatNumber(getOposicionMaxSimple())} puntos ÷ 10</small>
+      Suma de pesos: ${formatNumber(total)}
+      <small>Los pesos conservan su escala propia; no deben coincidir con el máximo Simple.</small>
     </span>
     <span>
-      ${isExact ? "Total completo" : difference > 0 ? `Faltan ${formatNumber(difference)}` : `Excede por ${formatNumber(Math.abs(difference))}`}
-      <small>Exclusiva: conversión proporcional a ${formatNumber(getOposicionMaxExclusiva())} puntos</small>
+      Notas permitidas: 1 a 10
+      <small>Máximos normalizados: Simple ${formatNumber(getOposicionMaxSimple())} · Exclusiva ${formatNumber(getOposicionMaxExclusiva())}</small>
     </span>
   `;
 }
@@ -1988,7 +1992,7 @@ function renderEvaluadores() {
       <th class="matrix-label criterion-label">${criterio.nombre}<span>Peso ${formatNumber(criterio.peso, 1)}</span></th>
       ${state.postulantes.map((postulante) => {
         const value = evaluador.evaluaciones[postulante.id].notas[criterio.id] ?? "";
-        return `<td class="note-cell"><input type="number" min="0" max="10" step="0.1" value="${value}" data-eval="${evalIndex}" data-postulante-id="${postulante.id}" data-criterio-id="${criterio.id}"></td>`;
+        return `<td class="note-cell"><input type="number" min="1" max="10" step="0.1" value="${value}" data-eval="${evalIndex}" data-postulante-id="${postulante.id}" data-criterio-id="${criterio.id}" aria-label="Nota de 1 a 10 para ${escapeAttribute(criterio.nombre)}, ${escapeAttribute(postulante.apellidos)} ${escapeAttribute(postulante.nombres)}"></td>`;
       }).join("")}
     </tr>
   `).join("");
@@ -2055,8 +2059,11 @@ function renderEvaluadores() {
   });
   container.querySelectorAll("[data-criterio-id]").forEach((input) => {
     input.addEventListener("input", (event) => {
+      const isEmpty = event.target.value === "";
       const value = Number(event.target.value);
-      if (value < 0 || value > 10) event.target.classList.add("invalid");
+      const isInvalid = !isEmpty && (value < 1 || value > 10);
+      event.target.classList.toggle("invalid", isInvalid);
+      if (isInvalid) return;
       const evaluacion = state.oposicion.evaluadores[Number(event.target.dataset.eval)].evaluaciones[event.target.dataset.postulanteId];
       evaluacion.notas[event.target.dataset.criterioId] = event.target.value;
       renderResultados();
