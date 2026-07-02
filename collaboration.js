@@ -14,6 +14,9 @@
   const authGate = document.querySelector("#auth-gate");
   const authForm = document.querySelector("#auth-form");
   const authStatus = document.querySelector("#auth-status");
+  const passwordSetupGate = document.querySelector("#password-setup-gate");
+  const passwordSetupForm = document.querySelector("#password-setup-form");
+  const passwordSetupStatus = document.querySelector("#password-setup-status");
   const toolbar = document.querySelector("#collaboration-toolbar");
   const competitionSelect = document.querySelector("#competition-select");
   const syncStatus = document.querySelector("#sync-status");
@@ -32,6 +35,7 @@
   let sessionSequence = 0;
   let occupiedEvaluatorKeys = new Map();
   let competitionMembers = [];
+  let passwordSetupRequired = new URLSearchParams(window.location.search).get("invite") === "1";
 
   function withTimeout(promise, milliseconds, message) {
     return Promise.race([
@@ -438,12 +442,37 @@
     }, { onConflict: "competition_id,email" });
     if (error) throw error;
     scheduleSave();
-
-    setStatus(
-      document.querySelector("#access-status"),
-      `Acceso autorizado para ${email}. Esa persona debe ingresar o crear su cuenta usando exactamente ese email.`
-    );
     await renderAccessList();
+    await copySecureEvaluatorLink(email);
+  }
+
+  async function generateSecureEvaluatorLink(email) {
+    if (!session?.access_token || !currentCompetition) throw new Error("La sesión venció. Ingrese nuevamente.");
+    const response = await fetch("/.netlify/functions/generate-evaluator-link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ competitionId: currentCompetition.id, email })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.link) {
+      throw new Error(result.error || "No se pudo generar el enlace seguro.");
+    }
+    return result.link;
+  }
+
+  async function copySecureEvaluatorLink(email) {
+    const status = document.querySelector("#access-status");
+    setStatus(status, `Generando enlace seguro para ${email}…`);
+    const link = await generateSecureEvaluatorLink(email);
+    try {
+      await navigator.clipboard.writeText(link);
+      setStatus(status, `Enlace seguro copiado para ${email}. Compártalo únicamente con ese evaluador.`);
+    } catch (_error) {
+      setStatus(status, `Enlace seguro para ${email}: ${link}`);
+    }
   }
 
   async function renderAccessList() {
@@ -521,11 +550,18 @@
         )}</span>
         <strong>Pendiente</strong>
         ${canManageAdmins ? `
-          <button
-            class="small-button danger-button"
-            type="button"
-            data-cancel-invitation="${invitation.id}"
-          >Cancelar autorización</button>
+          <div class="access-row-actions">
+            <button
+              class="small-button"
+              type="button"
+              data-copy-invitation-link="${escapeAttribute(invitation.email)}"
+            >Copiar enlace seguro</button>
+            <button
+              class="small-button danger-button"
+              type="button"
+              data-cancel-invitation="${invitation.id}"
+            >Cancelar autorización</button>
+          </div>
         ` : `<span></span>`}
       </div>
     `);
@@ -594,6 +630,17 @@
         } else {
           setStatus(document.querySelector("#access-status"), "Autorización pendiente cancelada.");
           await renderAccessList();
+        }
+        button.disabled = false;
+      });
+    });
+    list.querySelectorAll("[data-copy-invitation-link]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await copySecureEvaluatorLink(button.dataset.copyInvitationLink);
+        } catch (error) {
+          setStatus(document.querySelector("#access-status"), authErrorMessage(error), true);
         }
         button.disabled = false;
       });
@@ -689,8 +736,17 @@
       document.body.classList.add("auth-locked");
       return;
     }
+    if (passwordSetupRequired) {
+      authGate.hidden = true;
+      passwordSetupGate.hidden = false;
+      toolbar.hidden = true;
+      accessPanel.hidden = true;
+      document.body.classList.add("auth-locked");
+      return;
+    }
     if (loadedUserId === session.user.id && currentCompetition) return;
     authGate.hidden = true;
+    passwordSetupGate.hidden = true;
     toolbar.hidden = false;
     document.body.classList.remove("auth-locked");
     setStatus(authStatus, "");
@@ -767,6 +823,31 @@
     setStatus(authStatus, "Correo reenviado. Revise la bandeja de entrada y spam.");
   });
 
+  passwordSetupForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = document.querySelector("#password-setup-value").value;
+    const confirmation = document.querySelector("#password-setup-confirmation").value;
+    if (password.length < 8) {
+      setStatus(passwordSetupStatus, "Use una contraseña de al menos ocho caracteres.", true);
+      return;
+    }
+    if (password !== confirmation) {
+      setStatus(passwordSetupStatus, "Las contraseñas no coinciden.", true);
+      return;
+    }
+    setStatus(passwordSetupStatus, "Guardando contraseña…");
+    const { error } = await client.auth.updateUser({ password });
+    if (error) {
+      setStatus(passwordSetupStatus, authErrorMessage(error), true);
+      return;
+    }
+    passwordSetupRequired = false;
+    window.history.replaceState({}, "", window.location.pathname);
+    passwordSetupGate.hidden = true;
+    loadedUserId = null;
+    await handleSession(session);
+  });
+
   document.querySelector("#auth-sign-out").addEventListener("click", async () => {
     if (currentCompetition && currentMember) {
       await saveRemoteState();
@@ -789,15 +870,6 @@
     }
     accessPanel.hidden = !accessPanel.hidden;
     if (!accessPanel.hidden) renderAccessList();
-  });
-  document.querySelector("#copy-access-link").addEventListener("click", async () => {
-    const status = document.querySelector("#access-status");
-    try {
-      await navigator.clipboard.writeText(window.location.origin);
-      setStatus(status, "Enlace de ingreso copiado.");
-    } catch (_error) {
-      setStatus(status, `Comparta este enlace: ${window.location.origin}`);
-    }
   });
   document.querySelector("#close-access-panel").addEventListener("click", () => {
     accessPanel.hidden = true;

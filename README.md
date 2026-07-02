@@ -82,14 +82,25 @@ estructura de la base de datos, funciones y políticas está documentada en
 1. La persona administradora crea su cuenta desde la pantalla de acceso.
 2. Confirmar el email, si la confirmación está habilitada en Supabase.
 3. Ingresar al concurso fijo configurado para esta versión de prueba.
-4. Abrir **Accesos**, autorizar el email de cada evaluador y asignarle un lugar
-   libre de la terna.
-5. Cada evaluador ingresa o crea su cuenta con exactamente el email autorizado.
-   Al iniciar sesión, la autorización pendiente se incorpora automáticamente.
+4. Abrir **Accesos**, autorizar el email de cada evaluador, asignarle un lugar
+   libre de la terna y copiar su enlace seguro.
+5. Cada evaluador abre su enlace, define una contraseña y queda incorporado
+   automáticamente al concurso.
 
-La autorización no depende de un correo de invitación: el administrador puede
-comunicar directamente la URL pública del sitio. Los correos de confirmación de
-cuenta dependen de la configuración de email de Supabase.
+La autorización no depende del correo electrónico. El administrador genera un
+enlace secreto y de un solo uso desde la aplicación y lo comunica directamente
+al evaluador. Al abrirlo, la persona define su contraseña y queda vinculada con
+el lugar asignado en la terna.
+
+La función de Netlify que genera esos enlaces requiere estas variables de
+entorno, configuradas únicamente en el panel de Netlify:
+
+- `SUPABASE_SERVICE_ROLE_KEY`: clave `service_role` del proyecto de Supabase.
+- `SUPABASE_URL`: URL del proyecto (opcional para este despliegue).
+- `SITE_URL`: URL pública de Netlify (opcional para este despliegue).
+
+La clave `service_role` nunca debe agregarse a `supabase-config.js`, al
+repositorio ni al código ejecutado en el navegador.
 
 En Supabase, la URL del sitio y las URLs de redirección de autenticación deben
 incluir el dominio publicado en Netlify.

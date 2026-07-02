@@ -11,7 +11,7 @@
       <form id="auth-form" class="auth-panel">
         <p class="department-title">EGE · FCEyN - UBA</p>
         <h1>Acceso al asistente de concursos</h1>
-        <p>El administrador crea la primera cuenta. Los evaluadores ingresan o crean la suya con el email autorizado.</p>
+        <p>Ingrese con su cuenta. Si es evaluador nuevo, abra primero el enlace seguro compartido por el administrador.</p>
         <label>
           Nombre
           <input id="auth-display-name" type="text" autocomplete="name" placeholder="Sólo para crear una cuenta">
@@ -30,6 +30,24 @@
           <button id="auth-resend-confirmation" class="secondary-button" type="button">Reenviar confirmación</button>
         </div>
         <div id="auth-status" class="auth-status" aria-live="polite"></div>
+      </form>
+    </div>
+
+    <div id="password-setup-gate" class="auth-gate" hidden>
+      <form id="password-setup-form" class="auth-panel">
+        <p class="department-title">EGE · FCEyN - UBA</p>
+        <h1>Crear contraseña de acceso</h1>
+        <p>Este enlace seguro validó su identidad. Defina una contraseña personal para completar el ingreso.</p>
+        <label>
+          Nueva contraseña
+          <input id="password-setup-value" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <label>
+          Repetir contraseña
+          <input id="password-setup-confirmation" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <button class="primary-button" type="submit">Guardar contraseña e ingresar</button>
+        <div id="password-setup-status" class="auth-status" aria-live="polite"></div>
       </form>
     </div>
 
@@ -150,10 +168,9 @@
           <div class="access-panel-heading">
             <div>
               <h3>Acceso de evaluadores</h3>
-              <p>Autorice el email exacto de cada evaluador. Esa persona deberá ingresar o crear su cuenta con ese mismo email.</p>
+              <p>Genere un enlace secreto para cada evaluador y compártalo únicamente con esa persona.</p>
             </div>
             <div class="section-actions">
-              <button id="copy-access-link" class="secondary-button" type="button">Copiar enlace de ingreso</button>
               <button id="manage-access" class="secondary-button" type="button">Administrar accesos</button>
             </div>
           </div>
@@ -174,7 +191,7 @@
                   <option value="">Seleccione un evaluador</option>
                 </select>
               </label>
-              <button id="send-invitation" class="primary-button" type="button">Autorizar evaluador</button>
+              <button id="send-invitation" class="primary-button" type="button">Autorizar y copiar enlace seguro</button>
             </div>
             <div id="access-list" class="access-list"></div>
           </div>
@@ -190,7 +207,8 @@
           </div>
           <ol>
             <li>El administrador principal ingresa con su cuenta y administra la terna, la configuración y los accesos.</li>
-            <li>Cada evaluador usa una cuenta propia creada con el email previamente autorizado.</li>
+            <li>El administrador genera un enlace secreto, individual y de un solo uso para cada evaluador.</li>
+            <li>El evaluador abre el enlace, define su contraseña y queda vinculado automáticamente con su lugar en la terna.</li>
             <li>Los evaluadores cargan únicamente sus evaluaciones individuales.</li>
             <li>El administrador decide si cada antecedente usa carga única o independiente, consolida resultados y puede corregir cualquier carga.</li>
             <li>El administrador principal elige libremente un evaluador activo como co-administrador. Solo puede existir uno adicional a la vez.</li>
