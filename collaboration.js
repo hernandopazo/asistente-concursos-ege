@@ -748,6 +748,25 @@
     );
   });
 
+  document.querySelector("#auth-resend-confirmation").addEventListener("click", async () => {
+    const email = document.querySelector("#auth-email").value.trim();
+    if (!email) {
+      setStatus(authStatus, "Escriba el email de la cuenta que necesita confirmar.", true);
+      return;
+    }
+    setStatus(authStatus, "Reenviando confirmación…");
+    const { error } = await client.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: window.location.origin }
+    });
+    if (error) {
+      setStatus(authStatus, authErrorMessage(error), true);
+      return;
+    }
+    setStatus(authStatus, "Correo reenviado. Revise la bandeja de entrada y spam.");
+  });
+
   document.querySelector("#auth-sign-out").addEventListener("click", async () => {
     if (currentCompetition && currentMember) {
       await saveRemoteState();
