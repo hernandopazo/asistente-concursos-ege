@@ -388,12 +388,21 @@
       setStatus(document.querySelector("#access-status"), "Complete email, nombre e identidad.", true);
       return;
     }
+    const { error: releaseError } = await client
+      .from("competition_members")
+      .update({ evaluator_key: null })
+      .eq("competition_id", currentCompetition.id)
+      .eq("evaluator_key", evaluatorKey)
+      .eq("active", false);
+    if (releaseError) throw releaseError;
+
     const [{ data: occupiedMember, error: occupiedError }, { data: occupiedInvitation, error: invitationError }] = await Promise.all([
       client
         .from("competition_members")
         .select("display_name")
         .eq("competition_id", currentCompetition.id)
         .eq("evaluator_key", evaluatorKey)
+        .eq("active", true)
         .maybeSingle(),
       client
         .from("competition_invitations")
@@ -554,7 +563,19 @@
         if (error) {
           setStatus(document.querySelector("#access-status"), authErrorMessage(error), true);
         } else {
-          setStatus(document.querySelector("#access-status"), `Acceso revocado para ${name}.`);
+          const { error: releaseError } = await client
+            .from("competition_members")
+            .update({ evaluator_key: null })
+            .eq("competition_id", currentCompetition.id)
+            .eq("user_id", button.dataset.revokeMember)
+            .eq("active", false);
+          setStatus(
+            document.querySelector("#access-status"),
+            releaseError
+              ? `Acceso revocado para ${name}, pero no se pudo liberar su lugar: ${releaseError.message}`
+              : `Acceso revocado para ${name}; su lugar quedó disponible.`,
+            Boolean(releaseError)
+          );
           await loadCompetitions(currentCompetition.id);
         }
         button.disabled = false;

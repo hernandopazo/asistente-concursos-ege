@@ -231,7 +231,8 @@ begin
 
   update public.competition_members
   set active = false,
-      role = 'evaluator'
+      role = 'evaluator',
+      evaluator_key = null
   where competition_id = target_competition_id
     and user_id = target_user_id;
 end;
