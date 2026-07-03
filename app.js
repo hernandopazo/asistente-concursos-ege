@@ -443,6 +443,8 @@ let activeProfesionalesCargaId = "consolidada";
 let activeOtrosCargaId = "consolidada";
 let resultsCargo = "simple";
 let meritCargo = "simple";
+let localSaveTimer = null;
+let derivedViewsTimer = null;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -654,10 +656,28 @@ function migrateState(savedState) {
   return savedState;
 }
 
-function saveState() {
+function persistLocalState() {
+  clearTimeout(localSaveTimer);
+  localSaveTimer = null;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function saveState() {
+  clearTimeout(localSaveTimer);
+  localSaveTimer = setTimeout(persistLocalState, 120);
   window.collaboration?.scheduleSave?.();
 }
+
+function scheduleDerivedViewsRender() {
+  clearTimeout(derivedViewsTimer);
+  derivedViewsTimer = setTimeout(() => {
+    derivedViewsTimer = null;
+    renderResultados();
+    renderMerit();
+  }, 80);
+}
+
+window.addEventListener("pagehide", persistLocalState);
 
 const SCORE_CONFIGURATION_AREAS = {
   puntajes: "#config",
@@ -1727,10 +1747,16 @@ function renderRubros() {
     input.addEventListener("input", (event) => {
       const rubro = state.rubros[Number(event.target.dataset.rubro)];
       rubro[event.target.dataset.field] = Number(event.target.value);
-      render();
+      renderRubrosSummary();
+      scheduleDerivedViewsRender();
+      saveState();
     });
   });
 
+  renderRubrosSummary();
+}
+
+function renderRubrosSummary() {
   const totalSimple = state.rubros.reduce((sum, rubro) => sum + Number(rubro.simple || 0), 0);
   const totalExclusiva = state.rubros.reduce((sum, rubro) => sum + Number(rubro.exclusiva || 0), 0);
   const totalSimpleCell = document.querySelector("#total-simple");
@@ -2088,8 +2114,7 @@ function renderEvaluadores() {
       if (isInvalid) return;
       const evaluacion = state.oposicion.evaluadores[Number(event.target.dataset.eval)].evaluaciones[event.target.dataset.postulanteId];
       evaluacion.notas[event.target.dataset.criterioId] = event.target.value;
-      renderResultados();
-      renderMerit();
+      scheduleDerivedViewsRender();
       saveState();
       const score = container.querySelector(`[data-score-postulante="${event.target.dataset.postulanteId}"]`);
       const evaluatorScore = notaEvaluador(state.oposicion.evaluadores[Number(event.target.dataset.eval)], event.target.dataset.postulanteId);
@@ -2650,15 +2675,15 @@ function renderDocentesMatrix() {
       cargas[postulanteId].valores[event.target.dataset.docValue] = event.target.value;
       if (activeDocentesCargaId === "consolidada") {
         updateDocentesCandidate(postulanteId);
-        renderResultados();
-        renderMerit();
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.docValue);
-        renderResultados();
-        renderMerit();
-        renderDocentesMatrix();
+        updateDocentesCandidate(postulanteId, cargas);
       }
+      scheduleDerivedViewsRender();
       saveState();
+    });
+    input.addEventListener("change", () => {
+      if (activeDocentesCargaId !== "consolidada") renderDocentesMatrix();
     });
   });
 }
@@ -3202,15 +3227,15 @@ function renderCientificosMatrix() {
       cargas[postulanteId].valores[event.target.dataset.cienValue] = event.target.value;
       if (activeCientificosCargaId === "consolidada") {
         updateCientificosCandidate(postulanteId);
-        renderResultados();
-        renderMerit();
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.cienValue);
-        renderResultados();
-        renderMerit();
-        renderCientificosMatrix();
+        updateCientificosCandidate(postulanteId, cargas);
       }
+      scheduleDerivedViewsRender();
       saveState();
+    });
+    input.addEventListener("change", () => {
+      if (activeCientificosCargaId !== "consolidada") renderCientificosMatrix();
     });
   });
 }
@@ -3516,26 +3541,26 @@ function renderExtensionMatrix() {
       cargas[postulanteId].valores[event.target.dataset.extValue] = event.target.value;
       if (activeExtensionCargaId === "consolidada") {
         updateExtensionCandidate(postulanteId);
-        renderResultados();
-        renderMerit();
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.extValue);
-        renderResultados();
-        renderMerit();
-        renderExtensionMatrix();
+        updateExtensionCandidate(postulanteId, cargas);
       }
+      scheduleDerivedViewsRender();
       saveState();
+    });
+    input.addEventListener("change", () => {
+      if (activeExtensionCargaId !== "consolidada") renderExtensionMatrix();
     });
   });
 }
 
-function updateExtensionCandidate(postulanteId) {
+function updateExtensionCandidate(postulanteId, cargas = state.antecedentesExtension.cargas) {
   state.antecedentesExtension.tipos.forEach((tipo) => {
     const subtotal = document.querySelector(`[data-ext-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
-      subtotal.textContent = formatNumber(extensionTipoScore(tipo, postulanteId));
-      updateCalculation(subtotal, extensionTipoExplanation(tipo, postulanteId));
-      updateSaturation(subtotal, extensionTipoRawScore(tipo, postulanteId), tipo.maxInterno);
+      subtotal.textContent = formatNumber(extensionTipoScore(tipo, postulanteId, cargas));
+      updateCalculation(subtotal, extensionTipoExplanation(tipo, postulanteId, cargas));
+      updateSaturation(subtotal, extensionTipoRawScore(tipo, postulanteId, cargas), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -3543,19 +3568,19 @@ function updateExtensionCandidate(postulanteId) {
   const simple = document.querySelector(`[data-ext-simple="${postulanteId}"]`);
   const exclusive = document.querySelector(`[data-ext-exclusive="${postulanteId}"]`);
   if (internal) {
-    internal.textContent = formatNumber(extensionInternalScore(postulanteId));
-    updateCalculation(internal, extensionInternalExplanation(postulanteId));
-    updateSaturation(internal, extensionInternalScore(postulanteId), extensionInternalMax());
+    internal.textContent = formatNumber(extensionInternalScore(postulanteId, cargas));
+    updateCalculation(internal, extensionInternalExplanation(postulanteId, cargas));
+    updateSaturation(internal, extensionInternalScore(postulanteId, cargas), extensionInternalMax());
   }
   if (simple) {
-    simple.textContent = postulante.simple ? formatNumber(extensionSimpleScore(postulanteId)) : "—";
-    updateCalculation(simple, extensionRelativizedExplanation(postulanteId, getExtensionMaxSimple(), "Simple"));
-    updateSaturation(simple, postulante.simple ? extensionInternalScore(postulanteId) : 0, extensionInternalMax());
+    simple.textContent = postulante.simple ? formatNumber(extensionRelativizedValue(extensionInternalScore(postulanteId, cargas), getExtensionMaxSimple())) : "—";
+    updateCalculation(simple, extensionRelativizedExplanationFromCargas(postulanteId, getExtensionMaxSimple(), "Simple", cargas));
+    updateSaturation(simple, postulante.simple ? extensionInternalScore(postulanteId, cargas) : 0, extensionInternalMax());
   }
   if (exclusive) {
-    exclusive.textContent = postulante.exclusiva ? formatNumber(extensionExclusiveScore(postulanteId)) : "—";
-    updateCalculation(exclusive, extensionRelativizedExplanation(postulanteId, getExtensionMaxExclusiva(), "Exclusiva"));
-    updateSaturation(exclusive, postulante.exclusiva ? extensionInternalScore(postulanteId) : 0, extensionInternalMax());
+    exclusive.textContent = postulante.exclusiva ? formatNumber(extensionRelativizedValue(extensionInternalScore(postulanteId, cargas), getExtensionMaxExclusiva())) : "—";
+    updateCalculation(exclusive, extensionRelativizedExplanationFromCargas(postulanteId, getExtensionMaxExclusiva(), "Exclusiva", cargas));
+    updateSaturation(exclusive, postulante.exclusiva ? extensionInternalScore(postulanteId, cargas) : 0, extensionInternalMax());
   }
 }
 
@@ -3827,26 +3852,26 @@ function renderProfesionalesMatrix() {
       cargas[postulanteId].valores[event.target.dataset.profValue] = event.target.value;
       if (activeProfesionalesCargaId === "consolidada") {
         updateProfesionalesCandidate(postulanteId);
-        renderResultados();
-        renderMerit();
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.profValue);
-        renderResultados();
-        renderMerit();
-        renderProfesionalesMatrix();
+        updateProfesionalesCandidate(postulanteId, cargas);
       }
+      scheduleDerivedViewsRender();
       saveState();
+    });
+    input.addEventListener("change", () => {
+      if (activeProfesionalesCargaId !== "consolidada") renderProfesionalesMatrix();
     });
   });
 }
 
-function updateProfesionalesCandidate(postulanteId) {
+function updateProfesionalesCandidate(postulanteId, cargas = state.antecedentesProfesionales.cargas) {
   state.antecedentesProfesionales.tipos.forEach((tipo) => {
     const subtotal = document.querySelector(`[data-prof-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
-      subtotal.textContent = formatNumber(profesionalesTipoScore(tipo, postulanteId));
-      updateCalculation(subtotal, profesionalesTipoExplanation(tipo, postulanteId));
-      updateSaturation(subtotal, profesionalesTipoRawScore(tipo, postulanteId), tipo.maxInterno);
+      subtotal.textContent = formatNumber(profesionalesTipoScore(tipo, postulanteId, cargas));
+      updateCalculation(subtotal, profesionalesTipoExplanation(tipo, postulanteId, cargas));
+      updateSaturation(subtotal, profesionalesTipoRawScore(tipo, postulanteId, cargas), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -3854,19 +3879,19 @@ function updateProfesionalesCandidate(postulanteId) {
   const simple = document.querySelector(`[data-prof-simple="${postulanteId}"]`);
   const exclusive = document.querySelector(`[data-prof-exclusive="${postulanteId}"]`);
   if (internal) {
-    internal.textContent = formatNumber(profesionalesInternalScore(postulanteId));
-    updateCalculation(internal, profesionalesInternalExplanation(postulanteId));
-    updateSaturation(internal, profesionalesInternalScore(postulanteId), profesionalesInternalMax());
+    internal.textContent = formatNumber(profesionalesInternalScore(postulanteId, cargas));
+    updateCalculation(internal, profesionalesInternalExplanation(postulanteId, cargas));
+    updateSaturation(internal, profesionalesInternalScore(postulanteId, cargas), profesionalesInternalMax());
   }
   if (simple) {
-    simple.textContent = postulante.simple ? formatNumber(profesionalesSimpleScore(postulanteId)) : "—";
-    updateCalculation(simple, profesionalesRelativizedExplanation(postulanteId, getProfesionalesMaxSimple(), "Simple"));
-    updateSaturation(simple, postulante.simple ? profesionalesInternalScore(postulanteId) : 0, profesionalesInternalMax());
+    simple.textContent = postulante.simple ? formatNumber(profesionalesRelativizedValue(profesionalesInternalScore(postulanteId, cargas), getProfesionalesMaxSimple())) : "—";
+    updateCalculation(simple, profesionalesRelativizedExplanationFromCargas(postulanteId, getProfesionalesMaxSimple(), "Simple", cargas));
+    updateSaturation(simple, postulante.simple ? profesionalesInternalScore(postulanteId, cargas) : 0, profesionalesInternalMax());
   }
   if (exclusive) {
-    exclusive.textContent = postulante.exclusiva ? formatNumber(profesionalesExclusiveScore(postulanteId)) : "—";
-    updateCalculation(exclusive, profesionalesRelativizedExplanation(postulanteId, getProfesionalesMaxExclusiva(), "Exclusiva"));
-    updateSaturation(exclusive, postulante.exclusiva ? profesionalesInternalScore(postulanteId) : 0, profesionalesInternalMax());
+    exclusive.textContent = postulante.exclusiva ? formatNumber(profesionalesRelativizedValue(profesionalesInternalScore(postulanteId, cargas), getProfesionalesMaxExclusiva())) : "—";
+    updateCalculation(exclusive, profesionalesRelativizedExplanationFromCargas(postulanteId, getProfesionalesMaxExclusiva(), "Exclusiva", cargas));
+    updateSaturation(exclusive, postulante.exclusiva ? profesionalesInternalScore(postulanteId, cargas) : 0, profesionalesInternalMax());
   }
 }
 
@@ -4153,26 +4178,26 @@ function renderOtrosMatrix() {
       cargas[postulanteId].valores[event.target.dataset.otrosValue] = event.target.value;
       if (activeOtrosCargaId === "consolidada") {
         updateOtrosCandidate(postulanteId);
-        renderResultados();
-        renderMerit();
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.otrosValue);
-        renderResultados();
-        renderMerit();
-        renderOtrosMatrix();
+        updateOtrosCandidate(postulanteId, cargas);
       }
+      scheduleDerivedViewsRender();
       saveState();
+    });
+    input.addEventListener("change", () => {
+      if (activeOtrosCargaId !== "consolidada") renderOtrosMatrix();
     });
   });
 }
 
-function updateOtrosCandidate(postulanteId) {
+function updateOtrosCandidate(postulanteId, cargas = state.otrosAntecedentes.cargas) {
   state.otrosAntecedentes.tipos.forEach((tipo) => {
     const subtotal = document.querySelector(`[data-otros-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
-      subtotal.textContent = formatNumber(otrosTipoScore(tipo, postulanteId));
-      updateCalculation(subtotal, otrosTipoExplanation(tipo, postulanteId));
-      updateSaturation(subtotal, otrosTipoRawScore(tipo, postulanteId), tipo.maxInterno);
+      subtotal.textContent = formatNumber(otrosTipoScore(tipo, postulanteId, cargas));
+      updateCalculation(subtotal, otrosTipoExplanation(tipo, postulanteId, cargas));
+      updateSaturation(subtotal, otrosTipoRawScore(tipo, postulanteId, cargas), tipo.maxInterno);
     }
   });
   const postulante = state.postulantes.find((item) => item.id === postulanteId);
@@ -4180,19 +4205,19 @@ function updateOtrosCandidate(postulanteId) {
   const simple = document.querySelector(`[data-otros-simple="${postulanteId}"]`);
   const exclusive = document.querySelector(`[data-otros-exclusive="${postulanteId}"]`);
   if (internal) {
-    internal.textContent = formatNumber(otrosInternalScore(postulanteId));
-    updateCalculation(internal, otrosInternalExplanation(postulanteId));
-    updateSaturation(internal, otrosInternalRawScore(postulanteId), otrosInternalMax());
+    internal.textContent = formatNumber(otrosInternalScore(postulanteId, cargas));
+    updateCalculation(internal, otrosInternalExplanation(postulanteId, cargas));
+    updateSaturation(internal, otrosInternalRawScore(postulanteId, cargas), otrosInternalMax());
   }
   if (simple) {
-    simple.textContent = postulante.simple ? formatNumber(otrosSimpleScore(postulanteId)) : "—";
-    updateCalculation(simple, otrosRelativizedExplanation(postulanteId, getOtrosMaxSimple(), "Simple"));
-    updateSaturation(simple, postulante.simple ? otrosInternalRawScore(postulanteId) : 0, otrosInternalMax());
+    simple.textContent = postulante.simple ? formatNumber(otrosRelativizedValue(otrosInternalScore(postulanteId, cargas), getOtrosMaxSimple())) : "—";
+    updateCalculation(simple, otrosRelativizedExplanationFromCargas(postulanteId, getOtrosMaxSimple(), "Simple", cargas));
+    updateSaturation(simple, postulante.simple ? otrosInternalRawScore(postulanteId, cargas) : 0, otrosInternalMax());
   }
   if (exclusive) {
-    exclusive.textContent = postulante.exclusiva ? formatNumber(otrosExclusiveScore(postulanteId)) : "—";
-    updateCalculation(exclusive, otrosRelativizedExplanation(postulanteId, getOtrosMaxExclusiva(), "Exclusiva"));
-    updateSaturation(exclusive, postulante.exclusiva ? otrosInternalRawScore(postulanteId) : 0, otrosInternalMax());
+    exclusive.textContent = postulante.exclusiva ? formatNumber(otrosRelativizedValue(otrosInternalScore(postulanteId, cargas), getOtrosMaxExclusiva())) : "—";
+    updateCalculation(exclusive, otrosRelativizedExplanationFromCargas(postulanteId, getOtrosMaxExclusiva(), "Exclusiva", cargas));
+    updateSaturation(exclusive, postulante.exclusiva ? otrosInternalRawScore(postulanteId, cargas) : 0, otrosInternalMax());
   }
 }
 

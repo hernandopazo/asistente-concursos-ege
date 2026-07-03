@@ -29,6 +29,7 @@
   let realtimeChannel = null;
   let saveTimer = null;
   let reloadTimer = null;
+  let reloadPending = false;
   let suppressSave = true;
   let saving = false;
   let loadedUserId = null;
@@ -305,13 +306,17 @@
       setSyncStatus(error.message || "No se pudo guardar", "is-error");
     } finally {
       saving = false;
+      if (reloadPending) queueReload(250);
     }
   }
 
   function scheduleSave() {
     if (suppressSave || !currentCompetition) return;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveRemoteState, 700);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      saveRemoteState();
+    }, 700);
   }
 
   function subscribeRealtime(competitionId) {
@@ -337,11 +342,32 @@
   }
 
   function scheduleReload() {
+    reloadPending = true;
+    queueReload(500);
+  }
+
+  function isEditingControl() {
+    const active = document.activeElement;
+    return Boolean(active && active.matches("input, textarea, select, [contenteditable='true']"));
+  }
+
+  function queueReload(delay = 500) {
     clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {
-      if (!saving && currentCompetition) loadCompetition(currentCompetition.id);
-    }, 500);
+      reloadTimer = null;
+      if (!reloadPending || !currentCompetition) return;
+      if (saving || saveTimer || isEditingControl()) return;
+      reloadPending = false;
+      loadCompetition(currentCompetition.id).catch((error) => {
+        setSyncStatus(error.message || "No se pudieron actualizar los datos compartidos", "is-error");
+      });
+    }, delay);
   }
+
+  document.addEventListener("focusout", () => {
+    if (!reloadPending) return;
+    setTimeout(() => queueReload(150), 0);
+  });
 
   function updateSessionUi() {
     const assignedEvaluator = state?.oposicion?.evaluadores?.find(
