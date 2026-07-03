@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 21;
+const DATA_VERSION = 22;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -92,12 +92,11 @@ const initialState = {
   ],
   oposicion: {
     criterios: [
-      { id: "organizacion", nombre: "Organización, Factibilidad y Originalidad del TP", peso: 0.6 },
-      { id: "claridad", nombre: "Claridad de la exposición (respuestas)", peso: 0.9 },
-      { id: "respuestas", nombre: "Manejo de las Respuestas", peso: 0.3 },
-      { id: "material", nombre: "Uso del material didáctico", peso: 0.3 },
-      { id: "interaccion", nombre: "Nivel de interacción", peso: 0.3 },
-      { id: "tiempo", nombre: "Distribución y uso del tiempo", peso: 0.3 }
+      { id: "organizacion", nombre: "Organización, Factibilidad y Originalidad del TP", peso: 1 },
+      { id: "claridad", nombre: "Claridad de la exposición y respuestas", peso: 1 },
+      { id: "respuestas", nombre: "Idoneidad / Solidez en la exposición", peso: 0.8 },
+      { id: "material", nombre: "Uso del material didáctico", peso: 0.7 },
+      { id: "tiempo", nombre: "Distribución y uso del tiempo", peso: 0.5 }
     ],
     evaluadores: [
       { id: "eval_1", nombre: "Evaluador 1", color: "#d8a21b", evaluaciones: {} },
@@ -600,6 +599,10 @@ function migrateState(savedState) {
       const savedItem = savedCargo?.subitems.find((subitem) => subitem.id === defaultItem.id);
       if (savedItem) savedItem.nombre = defaultItem.nombre;
     });
+  }
+  if ((savedState.dataVersion || 1) < 22) {
+    savedState.oposicion ||= clone(initialState.oposicion);
+    savedState.oposicion.criterios = clone(initialState.oposicion.criterios);
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
@@ -1831,9 +1834,11 @@ function renderCriterios() {
   state.oposicion.criterios.forEach((criterio, index) => {
     const row = document.createElement("div");
     row.className = "criterion-row";
+    const removable = criterio.id.startsWith("criterio_") || !String(criterio.nombre || "").trim();
     row.innerHTML = `
-      <input class="criterion-name" type="text" value="${criterio.nombre}" data-criterio="${index}" data-field="nombre">
+      <input class="criterion-name" type="text" value="${escapeAttribute(criterio.nombre)}" data-criterio="${index}" data-field="nombre">
       <input class="criterion-weight" type="number" min="0" step="0.1" value="${criterio.peso}" data-criterio="${index}" data-field="peso">
+      ${removable ? `<button class="icon-button" type="button" data-remove-criterio="${index}" aria-label="Eliminar criterio" title="Eliminar criterio">×</button>` : "<span></span>"}
     `;
     list.appendChild(row);
   });
@@ -1852,7 +1857,24 @@ function renderCriterios() {
       saveState();
     });
   });
+  list.querySelectorAll("[data-remove-criterio]").forEach((button) => {
+    button.addEventListener("click", () => removeCriterio(Number(button.dataset.removeCriterio)));
+  });
   renderPesoSummary();
+}
+
+function removeCriterio(index) {
+  const criterio = state.oposicion.criterios[index];
+  if (!criterio) return;
+  const removable = criterio.id.startsWith("criterio_") || !String(criterio.nombre || "").trim();
+  if (!removable) return;
+  state.oposicion.criterios.splice(index, 1);
+  state.oposicion.evaluadores.forEach((evaluador) => {
+    Object.values(evaluador.evaluaciones).forEach((evaluacion) => {
+      if (evaluacion?.notas) delete evaluacion.notas[criterio.id];
+    });
+  });
+  render();
 }
 
 function restoreOppositionDefaults() {
@@ -4359,9 +4381,10 @@ function addPostulante() {
 }
 
 function addCriterio() {
-  const criterio = { id: `criterio_${Date.now()}`, nombre: "Nuevo criterio", peso: 0 };
+  const criterio = { id: `criterio_${Date.now()}`, nombre: "", peso: 0 };
   state.oposicion.criterios.push(criterio);
   render();
+  document.querySelector(`#criterios-list input[data-criterio="${state.oposicion.criterios.length - 1}"][data-field="nombre"]`)?.focus();
 }
 
 function addEvaluador() {

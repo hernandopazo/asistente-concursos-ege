@@ -831,7 +831,7 @@ main {
 
 .criterion-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 120px;
+  grid-template-columns: minmax(260px, 1fr) 120px 48px;
   align-items: center;
   border-top: 1px solid var(--line);
 }
@@ -852,7 +852,7 @@ main {
 
 .criteria-table-heading {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 120px;
+  grid-template-columns: minmax(260px, 1fr) 120px 48px;
   background: #e8edf1;
   border: 1px solid var(--line);
   font-size: 13px;
