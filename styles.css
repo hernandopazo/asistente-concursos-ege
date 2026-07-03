@@ -199,6 +199,44 @@ body.auth-locked {
   line-height: 1.3;
 }
 
+.competition-document {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.competition-document-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.competition-document-copy strong {
+  line-height: 1.3;
+}
+
+.competition-document-copy span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.document-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.competition-document-link {
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
 .setup-session {
   justify-content: space-between;
   margin-bottom: 16px;
@@ -1766,6 +1804,15 @@ main {
   .competition-create-controls,
   .access-row {
     grid-template-columns: 1fr;
+  }
+
+  .competition-document {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .competition-document-link {
+    text-align: center;
   }
 
   .collaboration-toolbar {
