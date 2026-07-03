@@ -2682,9 +2682,6 @@ function renderDocentesMatrix() {
       scheduleDerivedViewsRender();
       saveState();
     });
-    input.addEventListener("change", () => {
-      if (activeDocentesCargaId !== "consolidada") renderDocentesMatrix();
-    });
   });
 }
 
@@ -3234,9 +3231,6 @@ function renderCientificosMatrix() {
       scheduleDerivedViewsRender();
       saveState();
     });
-    input.addEventListener("change", () => {
-      if (activeCientificosCargaId !== "consolidada") renderCientificosMatrix();
-    });
   });
 }
 
@@ -3548,9 +3542,6 @@ function renderExtensionMatrix() {
       scheduleDerivedViewsRender();
       saveState();
     });
-    input.addEventListener("change", () => {
-      if (activeExtensionCargaId !== "consolidada") renderExtensionMatrix();
-    });
   });
 }
 
@@ -3858,9 +3849,6 @@ function renderProfesionalesMatrix() {
       }
       scheduleDerivedViewsRender();
       saveState();
-    });
-    input.addEventListener("change", () => {
-      if (activeProfesionalesCargaId !== "consolidada") renderProfesionalesMatrix();
     });
   });
 }
@@ -4184,9 +4172,6 @@ function renderOtrosMatrix() {
       }
       scheduleDerivedViewsRender();
       saveState();
-    });
-    input.addEventListener("change", () => {
-      if (activeOtrosCargaId !== "consolidada") renderOtrosMatrix();
     });
   });
 }
