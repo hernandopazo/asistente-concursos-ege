@@ -647,6 +647,28 @@ main {
   font-weight: 700;
 }
 
+.candidate-name.has-license,
+.data-table tr.has-license input[type="text"] {
+  color: #b42318;
+}
+
+.candidate-name.has-license {
+  font-weight: 800;
+}
+
+.candidate-name.has-license .muted {
+  color: inherit;
+}
+
+.candidate-license-label {
+  display: block;
+  margin-top: 3px;
+  color: #b42318;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .view {
   display: none;
 }

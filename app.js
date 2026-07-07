@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 22;
+const DATA_VERSION = 23;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -83,12 +83,12 @@ const initialState = {
     { id: "oposicion", nombre: "Pruebas de oposición", simpleMin: 25, simpleMax: 50, simple: 27, exclusivaMin: 20, exclusivaMax: 40, exclusiva: 25 }
   ],
   postulantes: [
-    { id: "postulante_1", numero: 1, apellidos: "Apellido 1", nombres: "Nombre 1", simple: true, exclusiva: true, dege: false, otroDepto: false },
-    { id: "postulante_2", numero: 2, apellidos: "Apellido 2", nombres: "Nombre 2", simple: true, exclusiva: true, dege: false, otroDepto: false },
-    { id: "postulante_3", numero: 3, apellidos: "Apellido 3", nombres: "Nombre 3", simple: true, exclusiva: false, dege: false, otroDepto: false },
-    { id: "postulante_4", numero: 4, apellidos: "Apellido 4", nombres: "Nombre 4", simple: true, exclusiva: true, dege: false, otroDepto: false },
-    { id: "postulante_5", numero: 5, apellidos: "Apellido 5", nombres: "Nombre 5", simple: true, exclusiva: false, dege: false, otroDepto: false },
-    { id: "postulante_6", numero: 6, apellidos: "Apellido 6", nombres: "Nombre 6", simple: true, exclusiva: true, dege: false, otroDepto: false }
+    { id: "postulante_1", numero: 1, apellidos: "Apellido 1", nombres: "Nombre 1", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false },
+    { id: "postulante_2", numero: 2, apellidos: "Apellido 2", nombres: "Nombre 2", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false },
+    { id: "postulante_3", numero: 3, apellidos: "Apellido 3", nombres: "Nombre 3", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false },
+    { id: "postulante_4", numero: 4, apellidos: "Apellido 4", nombres: "Nombre 4", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false },
+    { id: "postulante_5", numero: 5, apellidos: "Apellido 5", nombres: "Nombre 5", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false },
+    { id: "postulante_6", numero: 6, apellidos: "Apellido 6", nombres: "Nombre 6", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false }
   ],
   oposicion: {
     criterios: [
@@ -606,6 +606,11 @@ function migrateState(savedState) {
     savedState.oposicion ||= clone(initialState.oposicion);
     savedState.oposicion.criterios = clone(initialState.oposicion.criterios);
   }
+  if ((savedState.dataVersion || 1) < 23) {
+    savedState.postulantes.forEach((postulante) => {
+      postulante.licencia = Boolean(postulante.licencia);
+    });
+  }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
   savedState.contestStartDate ||= "";
@@ -646,6 +651,7 @@ function migrateState(savedState) {
   savedState.postulantes.forEach((postulante) => {
     postulante.dege = Boolean(postulante.dege);
     postulante.otroDepto = Boolean(postulante.otroDepto);
+    postulante.licencia = Boolean(postulante.licencia);
   });
   const evaluatorColors = ["#d8a21b", "#2d7fb8", "#5b9b52", "#a05ca5", "#c65c46", "#3c9687"];
   savedState.oposicion.evaluadores.forEach((evaluador, index) => {
@@ -928,6 +934,19 @@ function escapeAttribute(value) {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function candidateNameHtml(postulante, options = {}) {
+  const surname = escapeAttribute(postulante.apellidos || "Sin apellido");
+  const names = escapeAttribute(postulante.nombres || "Sin nombre");
+  const className = postulante.licencia ? "candidate-name has-license" : "candidate-name";
+  const licenseLabel = postulante.licencia ? `<span class="candidate-license-label">Covid/Licencia</span>` : "";
+  const department = options.department ? `<span class="candidate-department">${postulanteDepartamentoLabel(postulante)}</span>` : "";
+  return `<span class="${className}">${surname}<br><span class="muted">${names}</span>${licenseLabel}${department}</span>`;
+}
+
+function candidatePlainName(postulante) {
+  return `${postulante.apellidos || "Sin apellido"}, ${postulante.nombres || "Sin nombre"}`;
 }
 
 function calculationAttribute(text) {
@@ -1793,7 +1812,8 @@ function renderPostulantes() {
     simple: state.postulantes.filter((postulante) => postulante.simple).length,
     exclusiva: state.postulantes.filter((postulante) => postulante.exclusiva).length,
     dege: state.postulantes.filter((postulante) => postulante.dege).length,
-    otroDepto: state.postulantes.filter((postulante) => postulante.otroDepto).length
+    otroDepto: state.postulantes.filter((postulante) => postulante.otroDepto).length,
+    licencia: state.postulantes.filter((postulante) => postulante.licencia).length
   };
   summary.innerHTML = `
     <span>Total (${counts.total})</span>
@@ -1801,10 +1821,12 @@ function renderPostulantes() {
     <span>Exclusiva (${counts.exclusiva})</span>
     <span>DEGE (${counts.dege})</span>
     <span>Otros Deptos. (${counts.otroDepto})</span>
+    <span>Covid/Licencias (${counts.licencia})</span>
   `;
   tbody.innerHTML = "";
   state.postulantes.forEach((postulante, index) => {
     const row = document.createElement("tr");
+    row.classList.toggle("has-license", Boolean(postulante.licencia));
     row.innerHTML = `
       <td class="readonly-value">${postulante.numero}</td>
       <td><input type="text" value="${postulante.apellidos}" data-postulante="${index}" data-field="apellidos"></td>
@@ -1813,6 +1835,7 @@ function renderPostulantes() {
       <td><input type="checkbox" ${postulante.exclusiva ? "checked" : ""} data-postulante="${index}" data-field="exclusiva"></td>
       <td><input type="checkbox" ${postulante.dege ? "checked" : ""} data-postulante="${index}" data-field="dege" aria-label="${postulante.apellidos || "Postulante"} pertenece al DEGE"></td>
       <td><input type="checkbox" ${postulante.otroDepto ? "checked" : ""} data-postulante="${index}" data-field="otroDepto" aria-label="${postulante.apellidos || "Postulante"} pertenece a otro departamento"></td>
+      <td><input type="checkbox" ${postulante.licencia ? "checked" : ""} data-postulante="${index}" data-field="licencia" aria-label="${postulante.apellidos || "Postulante"} tuvo Covid o licencia"></td>
       <td><button class="icon-button" type="button" data-remove-postulante="${index}" title="Quitar postulante">×</button></td>
     `;
     tbody.appendChild(row);
@@ -2021,7 +2044,7 @@ function renderEvaluadores() {
 
   const evaluador = state.oposicion.evaluadores[evalIndex];
   const candidateHeaders = state.postulantes.map((postulante) => `
-    <th>${postulante.apellidos}<br><span class="muted">${postulante.nombres}</span></th>
+    <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const metadataRow = (label, field, type = "text") => `
     <tr>
@@ -2458,7 +2481,7 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
   dialog.innerHTML = `
     <div class="publication-editor-heading">
       <div>
-        <span>${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}</span>
+        <span>${candidateNameHtml(postulante)}</span>
         <h3>${escapeAttribute(subitem.nombre)}</h3>
       </div>
       <button class="icon-button publication-editor-close" type="button" data-close-teaching-origin-editor aria-label="Cerrar">×</button>
@@ -2549,11 +2572,7 @@ function renderDocentesMatrix() {
     return "Ingrese la cantidad correspondiente.";
   };
   const candidateHeaders = state.postulantes.map((postulante) => `
-    <th>
-      ${postulante.apellidos || "Sin apellido"}<br>
-      <span class="muted">${postulante.nombres || "Sin nombre"}</span>
-      <span class="candidate-department">${postulanteDepartamentoLabel(postulante)}</span>
-    </th>
+    <th>${candidateNameHtml(postulante, { department: true })}</th>
   `).join("");
 
   const groups = state.antecedentesDocentes.tipos.map((tipo, typeIndex) => {
@@ -3045,7 +3064,7 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
   dialog.innerHTML = `
     <div class="publication-editor-heading">
       <div>
-        <span>${escapeAttribute(postulante.apellidos)}, ${escapeAttribute(postulante.nombres)}</span>
+        <span>${candidateNameHtml(postulante)}</span>
         <h3>${escapeAttribute(group.nombre)}</h3>
       </div>
       <button class="icon-button publication-editor-close" type="button" data-close-publication-editor aria-label="Cerrar">×</button>
@@ -3125,7 +3144,7 @@ function renderCientificosMatrix() {
     renderCientificosMatrix
   );
   const candidateHeaders = state.postulantes.map((postulante) => `
-    <th>${postulante.apellidos || "Sin apellido"}<br><span class="muted">${postulante.nombres || "Sin nombre"}</span></th>
+    <th>${candidateNameHtml(postulante)}</th>
   `).join("");
 
   const groups = state.antecedentesCientificos.tipos.map((tipo, typeIndex) => `
@@ -3451,7 +3470,7 @@ function renderExtensionMatrix() {
     renderExtensionMatrix
   );
   const candidateHeaders = state.postulantes.map((postulante) => `
-    <th>${postulante.apellidos || "Sin apellido"}<br><span class="muted">${postulante.nombres || "Sin nombre"}</span></th>
+    <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const groups = state.antecedentesExtension.tipos.map((tipo, typeIndex) => `
     <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
@@ -3759,7 +3778,7 @@ function renderProfesionalesMatrix() {
     renderProfesionalesMatrix
   );
   const candidateHeaders = state.postulantes.map((postulante) => `
-    <th>${postulante.apellidos || "Sin apellido"}<br><span class="muted">${postulante.nombres || "Sin nombre"}</span></th>
+    <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const groups = state.antecedentesProfesionales.tipos.map((tipo, typeIndex) => `
     <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
@@ -4078,7 +4097,7 @@ function renderOtrosMatrix() {
     renderOtrosMatrix
   );
   const candidateHeaders = state.postulantes.map((postulante) => `
-    <th>${postulante.apellidos || "Sin apellido"}<br><span class="muted">${postulante.nombres || "Sin nombre"}</span></th>
+    <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const groups = state.otrosAntecedentes.tipos.map((tipo, typeIndex) => `
     <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
@@ -4220,7 +4239,7 @@ function renderResultados() {
     <tr>
       <th class="results-label">Rubro / puntaje ${cargoLabel}</th>
       ${candidates.map((postulante) => `
-        <th>${postulante.apellidos}<br><span class="muted">${postulante.nombres}</span></th>
+        <th>${candidateNameHtml(postulante)}</th>
       `).join("")}
     </tr>
   `;
@@ -4368,7 +4387,7 @@ function renderMerit() {
   tbody.innerHTML = ranked.map((entry, index) => `
     <tr>
       <td>${index + 1}</td>
-      <th>${entry.postulante.apellidos}, ${entry.postulante.nombres}</th>
+      <th>${candidateNameHtml(entry.postulante)}</th>
       <td><span ${calculationAttribute(currentLoadedTotalExplanation(entry.postulante.id, meritCargo))}>${formatNumber(entry.total)}</span></td>
     </tr>
   `).join("");
@@ -4383,7 +4402,8 @@ function addPostulante() {
     simple: true,
     exclusiva: false,
     dege: false,
-    otroDepto: false
+    otroDepto: false,
+    licencia: false
   };
   state.postulantes.unshift(postulante);
   render();
@@ -4463,7 +4483,7 @@ function exportResultsExcel() {
     ["Fecha de finalización", state.contestEndDate || ""],
     [`Resultados generales - ${cargoLabel}`],
     [],
-    ["Rubro", ...candidates.map((postulante) => `${postulante.apellidos}, ${postulante.nombres}`)]
+    ["Rubro", ...candidates.map((postulante) => candidatePlainName(postulante))]
   ];
   state.rubros.forEach((rubro) => {
     rows.push([
@@ -4496,7 +4516,7 @@ function exportMeritExcel() {
     ["Orden", "Postulante", "Puntaje total"],
     ...ranked.map((entry, index) => [
       index + 1,
-      `${entry.postulante.apellidos}, ${entry.postulante.nombres}`,
+      candidatePlainName(entry.postulante),
       entry.total
     ])
   ];
@@ -4561,6 +4581,7 @@ function rowsToPostulantes(rows) {
   const exclusivaColumn = findColumn(headers, ["Exclusiva", "JTP Exclusiva"]);
   const degeColumn = findColumn(headers, ["DEGE", "Personal DEGE"]);
   const otroDeptoColumn = findColumn(headers, ["Otro Depto", "Otro Departamento"]);
+  const licenciaColumn = findColumn(headers, ["Licencia", "Licencias", "Covid", "Covid/Licencias", "Covid-Licencias"]);
   const cargoColumn = findColumn(headers, ["Tipo de cargo", "Cargo", "Cargos"]);
 
   if (surnameColumn < 0 || nameColumn < 0) {
@@ -4582,7 +4603,8 @@ function rowsToPostulantes(rows) {
         simple: simpleColumn >= 0 ? parseParticipation(row[simpleColumn]) : cargo.simple,
         exclusiva: exclusivaColumn >= 0 ? parseParticipation(row[exclusivaColumn]) : cargo.exclusiva,
         dege: degeColumn >= 0 ? parseParticipation(row[degeColumn]) : false,
-        otroDepto: otroDeptoColumn >= 0 ? parseParticipation(row[otroDeptoColumn]) : false
+        otroDepto: otroDeptoColumn >= 0 ? parseParticipation(row[otroDeptoColumn]) : false,
+        licencia: licenciaColumn >= 0 ? parseParticipation(row[licenciaColumn]) : false
       };
     });
 }
