@@ -90,6 +90,13 @@
     syncStatus.className = `sync-status${className ? ` ${className}` : ""}`;
   }
 
+  function setSharedCompetitionReady(isReady) {
+    document.body.classList.toggle("no-shared-competition", !isReady);
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.disabled = !isReady && tab.dataset.view !== "concurso";
+    });
+  }
+
   function sharedStateSnapshot() {
     const shared = clone(state);
     shared.oposicion.evaluadores.forEach((evaluador) => {
@@ -217,7 +224,8 @@
       currentMember = null;
       occupiedEvaluatorKeys = new Map();
       accessPanel.hidden = true;
-      setSyncStatus("Cree un concurso o acepte una invitación");
+      setSyncStatus("Cree un concurso o acepte una invitación", "is-error");
+      setSharedCompetitionReady(false);
       updateSessionUi();
       applyPermissions();
     }
@@ -251,6 +259,7 @@
 
     currentCompetition = competition;
     currentMember = membership.member;
+    setSharedCompetitionReady(true);
     suppressSave = true;
     state = seedEvaluations(migrateState(clone(competition.shared_state)));
     normalizeEvaluatorNames(currentMember);
@@ -760,6 +769,7 @@
       accessPanel.hidden = true;
       competitionSelect.innerHTML = `<option value="">Sin sesión</option>`;
       document.body.classList.add("auth-locked");
+      setSharedCompetitionReady(false);
       return;
     }
     if (passwordSetupRequired) {
@@ -768,6 +778,7 @@
       toolbar.hidden = true;
       accessPanel.hidden = true;
       document.body.classList.add("auth-locked");
+      setSharedCompetitionReady(false);
       return;
     }
     if (loadedUserId === session.user.id && currentCompetition) return;
@@ -788,6 +799,7 @@
     } catch (error) {
       competitionSelect.innerHTML = `<option value="">No se pudo cargar</option>`;
       setSyncStatus(error.message || "No se pudo iniciar la colaboración", "is-error");
+      setSharedCompetitionReady(false);
     }
   }
 
