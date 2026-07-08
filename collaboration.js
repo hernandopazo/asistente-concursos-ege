@@ -130,6 +130,7 @@
     moduleKeys.forEach((key) => {
       state[key].cargasEvaluadores[evaluatorKey] = clone(remoteState.data.modules?.[key] || {});
     });
+    window.normalizeSingleScorePublicationGroups?.(state.antecedentesCientificos);
   }
 
   function normalizeEvaluatorNames(member) {

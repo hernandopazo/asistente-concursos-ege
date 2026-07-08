@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 23;
+const DATA_VERSION = 24;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -29,6 +29,8 @@ const PUBLICATION_AUTHOR_POSITIONS = [
   { id: "mas_cinco", nombre: "Más de 5 autores" }
 ];
 
+const SINGLE_SCORE_PUBLICATION_GROUP_IDS = new Set(["sin_indice", "com_corta_sin_indice", "enviado"]);
+
 const SCIENTIFIC_PUBLICATION_GROUPS = [
   { id: "q1", nombre: "Publicación Q1", puntos: [2, 1.4, 0.7, 0.35] },
   { id: "q2", nombre: "Publicación Q2", puntos: [1.5, 1.05, 0.525, 0.2625] },
@@ -46,8 +48,20 @@ const SCIENTIFIC_PUBLICATION_GROUPS = [
   { id: "editor_libro", nombre: "Editor de libro", puntos: [2, 1.4, 0.7, 0.35] }
 ];
 
-const SCIENTIFIC_PUBLICATION_SUBITEMS = SCIENTIFIC_PUBLICATION_GROUPS.flatMap((grupo) => (
-  PUBLICATION_AUTHOR_POSITIONS.map((posicion, index) => ({
+function scientificPublicationSubitemsForGroup(grupo) {
+  if (SINGLE_SCORE_PUBLICATION_GROUP_IDS.has(grupo.id)) {
+    return [{
+      id: `pub_${grupo.id}_unica`,
+      nombre: grupo.nombre,
+      puntos: grupo.puntos[0],
+      grupoId: grupo.id,
+      grupoNombre: grupo.nombre,
+      posicionId: "unica",
+      posicionNombre: "Cantidad",
+      puntajeUnico: true
+    }];
+  }
+  return PUBLICATION_AUTHOR_POSITIONS.map((posicion, index) => ({
     id: `pub_${grupo.id}_${posicion.id}`,
     nombre: `${grupo.nombre} — ${posicion.nombre}`,
     puntos: grupo.puntos[index],
@@ -55,8 +69,10 @@ const SCIENTIFIC_PUBLICATION_SUBITEMS = SCIENTIFIC_PUBLICATION_GROUPS.flatMap((g
     grupoNombre: grupo.nombre,
     posicionId: posicion.id,
     posicionNombre: posicion.nombre
-  }))
-));
+  }));
+}
+
+const SCIENTIFIC_PUBLICATION_SUBITEMS = SCIENTIFIC_PUBLICATION_GROUPS.flatMap(scientificPublicationSubitemsForGroup);
 
 document.documentElement.dataset.spreadsheetReader = typeof XLSX === "undefined" ? "missing" : "ready";
 
@@ -174,7 +190,7 @@ const initialState = {
         id: "publicaciones",
         nombre: "Publicaciones publicadas, en prensa o aceptadas",
         maxInterno: 20,
-        instruccion: "Seleccione un tipo para cargar cantidades según la posición de autoría.",
+        instruccion: "Seleccione un tipo para cargar cantidades; algunos rubros usan posición de autoría y otros puntaje único.",
         subitems: SCIENTIFIC_PUBLICATION_SUBITEMS
       },
       {
@@ -450,6 +466,57 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function singleScorePublicationId(groupId) {
+  return `pub_${groupId}_unica`;
+}
+
+function normalizeSingleScorePublicationGroups(scientificModule) {
+  const publicationType = scientificModule?.tipos?.find((tipo) => tipo.id === "publicaciones");
+  if (!publicationType?.subitems) return;
+
+  SINGLE_SCORE_PUBLICATION_GROUP_IDS.forEach((groupId) => {
+    const groupSubitems = publicationType.subitems.filter((subitem) => subitem.grupoId === groupId);
+    if (!groupSubitems.length) return;
+
+    const defaultGroup = SCIENTIFIC_PUBLICATION_GROUPS.find((group) => group.id === groupId);
+    const singleId = singleScorePublicationId(groupId);
+    const singleSubitem = groupSubitems.find((subitem) => subitem.id === singleId);
+    const groupName = singleSubitem?.grupoNombre || groupSubitems[0]?.grupoNombre || defaultGroup?.nombre || groupSubitems[0]?.nombre || "Publicación";
+    const points = Number(singleSubitem?.puntos ?? groupSubitems[0]?.puntos ?? defaultGroup?.puntos?.[0] ?? 0);
+    const oldIds = groupSubitems.map((subitem) => subitem.id);
+    const replacement = {
+      id: singleId,
+      nombre: groupName,
+      puntos: points,
+      grupoId: groupId,
+      grupoNombre: groupName,
+      posicionId: "unica",
+      posicionNombre: "Cantidad",
+      puntajeUnico: true
+    };
+
+    let inserted = false;
+    publicationType.subitems = publicationType.subitems.flatMap((subitem) => {
+      if (subitem.grupoId !== groupId) return [subitem];
+      if (inserted) return [];
+      inserted = true;
+      return [replacement];
+    });
+
+    [scientificModule.cargas, ...Object.values(scientificModule.cargasEvaluadores || {})].forEach((cargas) => {
+      Object.values(cargas || {}).forEach((carga) => {
+        carga.valores ||= {};
+        const oldTotal = oldIds
+          .filter((id) => id !== singleId)
+          .reduce((sum, id) => sum + Number(carga.valores[id] || 0), 0);
+        const current = Number(carga.valores[singleId] || 0);
+        if (oldTotal || current) carga.valores[singleId] = oldTotal + current;
+        oldIds.filter((id) => id !== singleId).forEach((id) => delete carga.valores[id]);
+      });
+    });
+  });
+}
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return seedEvaluations(clone(initialState));
@@ -611,6 +678,9 @@ function migrateState(savedState) {
       postulante.licencia = Boolean(postulante.licencia);
     });
   }
+  if ((savedState.dataVersion || 1) < 24) {
+    normalizeSingleScorePublicationGroups(savedState.antecedentesCientificos);
+  }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
   savedState.contestStartDate ||= "";
@@ -631,6 +701,7 @@ function migrateState(savedState) {
   savedState.antecedentesCientificos.modalidad ||= "unica";
   savedState.antecedentesCientificos.participacion ||= {};
   savedState.antecedentesCientificos.cargasEvaluadores ||= {};
+  normalizeSingleScorePublicationGroups(savedState.antecedentesCientificos);
   savedState.antecedentesExtension ||= clone(initialState.antecedentesExtension);
   savedState.antecedentesExtension.modalidad ||= "unica";
   savedState.antecedentesExtension.participacion ||= {};
@@ -1315,6 +1386,10 @@ function scientificPublicationGroups(tipo) {
   return [...groups.values()];
 }
 
+function scientificPublicationGroupIsSingleScore(group) {
+  return group.subitems.length === 1 && Boolean(group.subitems[0].puntajeUnico);
+}
+
 function scientificPublicationGroupScore(group, postulanteId, cargas) {
   const valores = cargas[postulanteId]?.valores || {};
   return group.subitems.reduce((sum, subitem) => (
@@ -1333,7 +1408,8 @@ function scientificPublicationGroupExplanation(group, postulanteId, cargas) {
     .filter((subitem) => Number(valores[subitem.id] || 0) !== 0)
     .map((subitem) => {
       const cantidad = Number(valores[subitem.id] || 0);
-      return `${subitem.posicionNombre}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`;
+      const label = scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre;
+      return `${label}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`;
     });
   const score = scientificPublicationGroupScore(group, postulanteId, cargas);
   return `${group.nombre}\n${lines.length ? lines.join("\n") : "Sin publicaciones cargadas."}\nSubtotal interno: ${formatNumber(score)}\nSimple: ${formatNumber(cientificosRelativizedValue(score, getCientificosMaxSimple()))}\nExclusiva: ${formatNumber(cientificosRelativizedValue(score, getCientificosMaxExclusiva()))}`;
@@ -1346,7 +1422,7 @@ function scientificPublicationGroupDifference(module, postulanteId, group) {
   return {
     differs: differences.length > 0,
     explanation: differences.map(({ subitem, difference }) => (
-      `${subitem.posicionNombre}:\n${difference.explanation}`
+      `${scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre}:\n${difference.explanation}`
     )).join("\n\n")
   };
 }
@@ -2745,7 +2821,7 @@ function publicationConfigSection(tipo, typeIndex) {
       ${group.subitems.map((subitem) => {
         const itemIndex = tipo.subitems.indexOf(subitem);
         return `
-          <td>
+          <td${scientificPublicationGroupIsSingleScore(group) ? ` colspan="${PUBLICATION_AUTHOR_POSITIONS.length}"` : ""}>
             <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-cien-type="${typeIndex}" data-cien-item="${itemIndex}" data-cien-field="puntos" aria-label="Puntaje de ${escapeAttribute(group.nombre)}, ${escapeAttribute(subitem.posicionNombre)}">
             <small>
               S <output data-cien-item-simple="${typeIndex}:${itemIndex}">${formatNumber(cientificosRelativizedValue(subitem.puntos, getCientificosMaxSimple()))}</output>
@@ -2882,7 +2958,7 @@ function renderCientificosConfig() {
       const groupId = event.target.dataset.cienPublicationGroupName;
       tipo.subitems.filter((subitem) => subitem.grupoId === groupId).forEach((subitem) => {
         subitem.grupoNombre = event.target.value;
-        subitem.nombre = `${event.target.value} — ${subitem.posicionNombre}`;
+        subitem.nombre = subitem.puntajeUnico ? event.target.value : `${event.target.value} — ${subitem.posicionNombre}`;
       });
       saveState();
     });
@@ -3031,7 +3107,7 @@ function publicationCellExplanation(tipo, group, postulanteId, cargas) {
 function publicationMatrixRows(tipo, cargas, module) {
   return scientificPublicationGroups(tipo).map((group) => `
     <tr>
-      <th class="matrix-label">${escapeAttribute(group.nombre)}<span>Cuatro posiciones de autoría</span></th>
+      <th class="matrix-label">${escapeAttribute(group.nombre)}<span>${scientificPublicationGroupIsSingleScore(group) ? "Puntaje único, sin posición de autoría" : "Cuatro posiciones de autoría"}</span></th>
       ${state.postulantes.map((postulante) => {
         const difference = activeCientificosCargaId === "consolidada" && module.modalidad === "evaluadores"
           ? scientificPublicationGroupDifference(module, postulante.id, group)
@@ -3070,7 +3146,7 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
       <button class="icon-button publication-editor-close" type="button" data-close-publication-editor aria-label="Cerrar">×</button>
     </div>
     <div class="publication-editor-columns" aria-hidden="true">
-      <span>Posición de autoría</span>
+      <span>${scientificPublicationGroupIsSingleScore(group) ? "Ítem" : "Posición de autoría"}</span>
       <span>Cantidad</span>
       <span>Puntaje</span>
     </div>
@@ -3081,8 +3157,8 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
         const exclusive = cientificosRelativizedValue(subitem.puntos, getCientificosMaxExclusiva());
         return `
           <label>
-            <span>${escapeAttribute(subitem.posicionNombre)}</span>
-            <input type="number" min="0" step="1" value="${value === "" ? "" : editableNumber(value, 2)}" data-publication-value="${subitem.id}" aria-label="Cantidad: ${escapeAttribute(subitem.posicionNombre)}">
+            <span>${escapeAttribute(scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre)}</span>
+            <input type="number" min="0" step="1" value="${value === "" ? "" : editableNumber(value, 2)}" data-publication-value="${subitem.id}" aria-label="Cantidad: ${escapeAttribute(scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre)}">
             <small>S ${formatNumber(simple)} · E ${formatNumber(exclusive)}</small>
           </label>
         `;
