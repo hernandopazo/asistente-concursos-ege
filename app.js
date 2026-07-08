@@ -466,6 +466,30 @@ let activeCientificosCargaId = "consolidada";
 let activeExtensionCargaId = "consolidada";
 let activeProfesionalesCargaId = "consolidada";
 let activeOtrosCargaId = "consolidada";
+const antecedentDetailsOpen = {
+  docentes: {},
+  cientificos: {},
+  extension: {},
+  profesionales: {},
+  otros: {}
+};
+
+function antecedentDetailOpenAttribute(sectionKey, typeIndex) {
+  const stored = antecedentDetailsOpen[sectionKey]?.[typeIndex];
+  const isOpen = stored === undefined ? typeIndex === 0 : stored;
+  return isOpen ? "open" : "";
+}
+
+function attachAntecedentDetailsState(container, sectionKey) {
+  container.querySelectorAll("details.scientific-entry-group").forEach((details) => {
+    details.addEventListener("toggle", () => {
+      const typeIndex = details.dataset.typeIndex;
+      if (typeIndex === undefined) return;
+      antecedentDetailsOpen[sectionKey] ||= {};
+      antecedentDetailsOpen[sectionKey][typeIndex] = details.open;
+    });
+  });
+}
 let resultsCargo = "simple";
 let meritCargo = "simple";
 let localSaveTimer = null;
@@ -2945,7 +2969,7 @@ function renderDocentesMatrix() {
       </tr>
     `;
     return `
-      <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
+      <details class="scientific-entry-group" data-type-index="${typeIndex}" ${antecedentDetailOpenAttribute("docentes", typeIndex)}>
         <summary>
           <strong>${tipo.nombre}</strong>
           <small>${teachingTypeInstruction(tipo)}</small>
@@ -3008,6 +3032,8 @@ function renderDocentesMatrix() {
   `;
 
   attachAntecedentNotesHandler(container, module, activeDocentesCargaId);
+  attachAntecedentDetailsState(container, "docentes");
+
 
   const cargoType = module.tipos.find((tipo) => tipo.id === "cargo");
   if (cargoType) {
@@ -3480,7 +3506,7 @@ function renderCientificosMatrix() {
   `).join("");
 
   const groups = state.antecedentesCientificos.tipos.map((tipo, typeIndex) => `
-    <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
+    <details class="scientific-entry-group" data-type-index="${typeIndex}" ${antecedentDetailOpenAttribute("cientificos", typeIndex)}>
       <summary>
         <strong>${tipo.nombre}</strong>
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
@@ -3558,6 +3584,8 @@ function renderCientificosMatrix() {
   `;
 
   attachAntecedentNotesHandler(container, module, activeCientificosCargaId);
+  attachAntecedentDetailsState(container, "cientificos");
+
 
   const publicationType = module.tipos.find((tipo) => tipo.id === "publicaciones");
   if (publicationType) {
@@ -3807,7 +3835,7 @@ function renderExtensionMatrix() {
     <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const groups = state.antecedentesExtension.tipos.map((tipo, typeIndex) => `
-    <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
+    <details class="scientific-entry-group" data-type-index="${typeIndex}" ${antecedentDetailOpenAttribute("extension", typeIndex)}>
       <summary>
         <strong>${tipo.nombre}</strong>
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
@@ -3915,6 +3943,8 @@ function renderExtensionMatrix() {
   `;
 
   attachAntecedentNotesHandler(container, module, activeExtensionCargaId);
+  attachAntecedentDetailsState(container, "extension");
+
 
   container.querySelectorAll("[data-ext-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -4157,7 +4187,7 @@ function renderProfesionalesMatrix() {
     <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const groups = state.antecedentesProfesionales.tipos.map((tipo, typeIndex) => `
-    <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
+    <details class="scientific-entry-group" data-type-index="${typeIndex}" ${antecedentDetailOpenAttribute("profesionales", typeIndex)}>
       <summary>
         <strong>${tipo.nombre}</strong>
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
@@ -4264,6 +4294,8 @@ function renderProfesionalesMatrix() {
   `;
 
   attachAntecedentNotesHandler(container, module, activeProfesionalesCargaId);
+  attachAntecedentDetailsState(container, "profesionales");
+
 
   container.querySelectorAll("[data-prof-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -4517,7 +4549,7 @@ function renderOtrosMatrix() {
     <th>${candidateNameHtml(postulante)}</th>
   `).join("");
   const groups = state.otrosAntecedentes.tipos.map((tipo, typeIndex) => `
-    <details class="scientific-entry-group" ${typeIndex === 0 ? "open" : ""}>
+    <details class="scientific-entry-group" data-type-index="${typeIndex}" ${antecedentDetailOpenAttribute("otros", typeIndex)}>
       <summary>
         <strong>${tipo.nombre}</strong>
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
@@ -4598,6 +4630,8 @@ function renderOtrosMatrix() {
   `;
 
   attachAntecedentNotesHandler(container, module, activeOtrosCargaId);
+  attachAntecedentDetailsState(container, "otros");
+
 
   container.querySelectorAll("[data-otros-value]").forEach((input) => {
     const updateValue = (event) => {
