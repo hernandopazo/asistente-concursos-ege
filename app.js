@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 27;
+const DATA_VERSION = 28;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -83,6 +83,7 @@ const initialState = {
   contestEndDate: "",
   evaluatorLocks: {},
   scoreConfigurationLocks: {
+    postulantes: true,
     puntajes: true,
     oposicion: true,
     docentes: true,
@@ -762,6 +763,7 @@ function scheduleDerivedViewsRender() {
 window.addEventListener("pagehide", persistLocalState);
 
 const SCORE_CONFIGURATION_AREAS = {
+  postulantes: "#postulantes",
   puntajes: "#config",
   oposicion: "#criteria-panel",
   docentes: "#docentes-config-panel",

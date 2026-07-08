@@ -707,8 +707,6 @@
     const ownLoadLocked = Boolean(evaluatorKey && window.isEvaluatorLocked?.(evaluatorKey));
 
     const adminSelectors = [
-      "#postulantes input",
-      "#postulantes button",
       "#header-evaluators-list input",
       "#header-evaluators-list button",
       "#add-evaluador",
@@ -716,6 +714,7 @@
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));
 
     const scoreConfigurationAreas = {
+      postulantes: "#postulantes",
       puntajes: "#config",
       oposicion: "#criteria-panel",
       docentes: "#docentes-config-panel",
