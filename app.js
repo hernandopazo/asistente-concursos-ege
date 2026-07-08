@@ -4540,7 +4540,11 @@ function renderOtrosMatrix() {
                   const difference = activeOtrosCargaId === "consolidada" && module.modalidad === "evaluadores"
                     ? antecedentDifference(module, postulante.id, subitem.id)
                     : { differs: false, explanation: "" };
-                  return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" ${subitem.maxCantidad === 1 ? 'max="1" step="1"' : 'step="0.01"'} value="${value === "" ? "" : editableNumber(value, 2)}" data-otros-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                  if (subitem.maxCantidad === 1) {
+                    const selectedValue = value === "" ? "" : String(Number(value) ? 1 : 0);
+                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><select data-otros-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}><option value="" ${selectedValue === "" ? "selected" : ""}></option><option value="0" ${selectedValue === "0" ? "selected" : ""}>No</option><option value="1" ${selectedValue === "1" ? "selected" : ""}>Sí</option></select></td>`;
+                  }
+                  return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-otros-value="${subitem.id}" data-otros-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
                 }).join("")}
               </tr>
             `).join("")}
@@ -4596,13 +4600,18 @@ function renderOtrosMatrix() {
   attachAntecedentNotesHandler(container, module, activeOtrosCargaId);
 
   container.querySelectorAll("[data-otros-value]").forEach((input) => {
-    input.addEventListener("input", (event) => {
+    const updateValue = (event) => {
       const postulanteId = event.target.dataset.postulanteId;
       const tipo = module.tipos.find((item) => item.subitems.some((subitem) => subitem.id === event.target.dataset.otrosValue));
       const subitem = tipo?.subitems.find((item) => item.id === event.target.dataset.otrosValue);
-      const numericValue = Number(event.target.value);
-      if (subitem?.maxCantidad === 1 && numericValue > 1) event.target.value = "1";
-      cargas[postulanteId].valores[event.target.dataset.otrosValue] = event.target.value;
+      let value = event.target.value;
+      if (subitem?.maxCantidad === 1) {
+        value = value === "" ? "" : String(Number(value) ? 1 : 0);
+      } else {
+        value = value === "" ? "" : String(Math.max(0, Math.trunc(Number(value) || 0)));
+      }
+      if (event.target.value !== value) event.target.value = value;
+      cargas[postulanteId].valores[event.target.dataset.otrosValue] = value;
       if (activeOtrosCargaId === "consolidada") {
         updateOtrosCandidate(postulanteId);
       } else {
@@ -4611,7 +4620,9 @@ function renderOtrosMatrix() {
       }
       scheduleDerivedViewsRender();
       saveState();
-    });
+    };
+    input.addEventListener("input", updateValue);
+    input.addEventListener("change", updateValue);
   });
 }
 

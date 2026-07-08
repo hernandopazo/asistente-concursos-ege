@@ -749,7 +749,7 @@
     setDisabled("#cientificos-matrix input, #cientificos-matrix textarea", (activeCientificosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeCientificosCargaId === evaluatorKey));
     setDisabled("#extension-matrix input, #extension-matrix textarea", (activeExtensionCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeExtensionCargaId === evaluatorKey));
     setDisabled("#profesionales-matrix input, #profesionales-matrix textarea", (activeProfesionalesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeProfesionalesCargaId === evaluatorKey));
-    setDisabled("#otros-matrix input, #otros-matrix textarea", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
+    setDisabled("#otros-matrix input, #otros-matrix textarea, #otros-matrix select", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
     setDisabled("#teaching-origin-editor input", ownLoadLocked && activeDocentesCargaId === evaluatorKey);
     setDisabled("#publication-editor input", ownLoadLocked && activeCientificosCargaId === evaluatorKey);
 
