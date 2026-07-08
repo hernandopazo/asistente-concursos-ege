@@ -3859,9 +3859,8 @@ function renderExtensionMatrix() {
                     const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
                       ? antecedentDifference(module, postulante.id, subitem.id)
                       : { differs: false, explanation: "" };
-                    const integerAttrs = tipo.id === "publicaciones_divulgacion" ? 'step="1" inputmode="numeric" data-ext-integer="true"' : 'step="0.01"';
-                    const displayValue = value === "" ? "" : editableNumber(value, tipo.id === "publicaciones_divulgacion" ? 0 : 2);
-                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" ${integerAttrs} value="${displayValue}" data-ext-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                    const displayValue = value === "" ? "" : editableNumber(value, 0);
+                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${displayValue}" data-ext-value="${subitem.id}" data-ext-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
                   }).join("")}
                 </tr>
               `;
@@ -3920,11 +3919,9 @@ function renderExtensionMatrix() {
   container.querySelectorAll("[data-ext-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
       const postulanteId = event.target.dataset.postulanteId;
-      if (event.target.dataset.extInteger === "true" && event.target.value !== "") {
-        const integerValue = Math.max(0, Math.round(Number(event.target.value) || 0));
-        event.target.value = String(integerValue);
-      }
-      cargas[postulanteId].valores[event.target.dataset.extValue] = event.target.value;
+      const value = event.target.value === "" ? "" : String(Math.max(0, Math.trunc(Number(event.target.value) || 0)));
+      if (event.target.value !== value) event.target.value = value;
+      cargas[postulanteId].valores[event.target.dataset.extValue] = value;
       if (activeExtensionCargaId === "consolidada") {
         updateExtensionCandidate(postulanteId);
       } else {
