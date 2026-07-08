@@ -344,7 +344,7 @@ const initialState = {
         maxInterno: 5,
         instruccion: "Ingrese la cantidad de antecedentes correspondientes, considerando su jerarquía y campo de aplicación.",
         subitems: [
-          { id: "prof_organizacion_congresos", nombre: "Organización de congresos o reuniones", puntos: 1 },
+          { id: "prof_organizacion_congresos", nombre: "Organización y colaboración en congresos o reuniones", puntos: 1, modo: "organizacion_congreso", colaboracionFactor: 0.33 },
           { id: "prof_guia", nombre: "Guía en museos, Tecnópolis u otras instituciones", puntos: 0.5 },
           { id: "prof_pasantias_rentadas", nombre: "Pasantías rentadas", puntos: 0.5 },
           { id: "prof_entrenamiento_no_rentado", nombre: "Entrenamiento de laboratorio no rentado (al menos un mes)", puntos: 0.3 },
@@ -739,6 +739,7 @@ function migrateState(savedState) {
   savedState.antecedentesProfesionales.participacion ||= {};
   savedState.antecedentesProfesionales.cargasEvaluadores ||= {};
   savedState.antecedentesProfesionales.anotaciones ||= {};
+  normalizeProfessionalCompositeItems(savedState.antecedentesProfesionales);
   savedState.otrosAntecedentes ||= clone(initialState.otrosAntecedentes);
   savedState.otrosAntecedentes.modalidad ||= "unica";
   savedState.otrosAntecedentes.participacion ||= {};
@@ -1729,11 +1730,69 @@ function getProfesionalesMaxExclusiva() {
   return Number(getRubro("profesionales")?.exclusiva || 0);
 }
 
+function professionalCompositeFieldId(subitem, kind) {
+  return `${subitem.id}_${kind}`;
+}
+
+function professionalCompositeParts(subitem) {
+  if (subitem.modo === "organizacion_congreso") {
+    const organizacionPoints = Number(subitem.puntos || 0);
+    return [
+      { kind: "organizacion", label: "Organización", points: organizacionPoints },
+      { kind: "colaboracion", label: "Colaboración", points: organizacionPoints * Number(subitem.colaboracionFactor ?? 0.33) }
+    ];
+  }
+  return null;
+}
+
+function profesionalesSubitemRawScore(subitem, valores) {
+  const parts = professionalCompositeParts(subitem);
+  if (parts) {
+    return parts.reduce((sum, part) => {
+      return sum + Number(valores[professionalCompositeFieldId(subitem, part.kind)] || 0) * Number(part.points || 0);
+    }, 0);
+  }
+  return Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0);
+}
+
+function profesionalesSubitemExplanationLines(subitem, valores) {
+  const parts = professionalCompositeParts(subitem);
+  if (parts) {
+    return parts
+      .map((part) => {
+        const quantity = Number(valores[professionalCompositeFieldId(subitem, part.kind)] || 0);
+        return quantity ? `${part.label}: ${formatNumber(quantity)} × ${formatNumber(part.points)} = ${formatNumber(quantity * Number(part.points || 0))}` : "";
+      })
+      .filter(Boolean);
+  }
+  const cantidad = Number(valores[subitem.id] || 0);
+  return cantidad
+    ? [`${subitem.nombre}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`]
+    : [];
+}
+
+function normalizeProfessionalCompositeItems(module) {
+  const subitem = module?.tipos
+    ?.find((tipo) => tipo.id === "otros_profesionales")
+    ?.subitems?.find((item) => item.id === "prof_organizacion_congresos");
+  if (!subitem) return;
+  subitem.nombre = "Organización y colaboración en congresos o reuniones";
+  subitem.modo = "organizacion_congreso";
+  subitem.colaboracionFactor ??= 0.33;
+  const orgField = professionalCompositeFieldId(subitem, "organizacion");
+  [module.cargas, ...Object.values(module.cargasEvaluadores || {})].forEach((cargas) => {
+    Object.values(cargas || {}).forEach((entry) => {
+      const valores = entry?.valores;
+      if (!valores || valores[subitem.id] === undefined || valores[subitem.id] === "") return;
+      valores[orgField] ??= valores[subitem.id];
+      delete valores[subitem.id];
+    });
+  });
+}
+
 function profesionalesTipoRawScore(tipo, postulanteId, cargas = state.antecedentesProfesionales.cargas) {
   const valores = cargas[postulanteId]?.valores || {};
-  return tipo.subitems.reduce((sum, subitem) => {
-    return sum + Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0);
-  }, 0);
+  return tipo.subitems.reduce((sum, subitem) => sum + profesionalesSubitemRawScore(subitem, valores), 0);
 }
 
 function profesionalesTipoScore(tipo, postulanteId, cargas = state.antecedentesProfesionales.cargas) {
@@ -1742,12 +1801,7 @@ function profesionalesTipoScore(tipo, postulanteId, cargas = state.antecedentesP
 
 function profesionalesTipoExplanation(tipo, postulanteId, cargas = state.antecedentesProfesionales.cargas) {
   const valores = cargas[postulanteId]?.valores || {};
-  const lines = tipo.subitems
-    .filter((subitem) => Number(valores[subitem.id] || 0) !== 0)
-    .map((subitem) => {
-      const cantidad = Number(valores[subitem.id] || 0);
-      return `${subitem.nombre}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`;
-    });
+  const lines = tipo.subitems.flatMap((subitem) => profesionalesSubitemExplanationLines(subitem, valores));
   const raw = profesionalesTipoRawScore(tipo, postulanteId, cargas);
   const capped = profesionalesTipoScore(tipo, postulanteId, cargas);
   const capNote = scoreReachesCap(raw, tipo.maxInterno)
@@ -4098,18 +4152,48 @@ function renderProfesionalesMatrix() {
             </tr>
           </thead>
           <tbody>
-            ${tipo.subitems.map((subitem) => `
-              <tr>
-                <th class="matrix-label">${subitem.nombre}<span>${formatNumber(subitem.puntos)} puntos por unidad</span></th>
-                ${state.postulantes.map((postulante) => {
-                  const value = cargas[postulante.id].valores[subitem.id] ?? "";
-                  const difference = activeProfesionalesCargaId === "consolidada" && module.modalidad === "evaluadores"
-                    ? antecedentDifference(module, postulante.id, subitem.id)
-                    : { differs: false, explanation: "" };
-                  return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-prof-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
-                }).join("")}
-              </tr>
-            `).join("")}
+            ${tipo.subitems.flatMap((subitem) => {
+              const compositeParts = professionalCompositeParts(subitem);
+              if (compositeParts) {
+                return [
+                  `
+                    <tr class="extension-composite-heading">
+                      <th class="matrix-label">${subitem.nombre}<span>${compositeParts.map((part) => `${part.label} ${formatNumber(part.points)}`).join(" · ")}</span></th>
+                      ${state.postulantes.map((postulante) => {
+                        const valores = cargas[postulante.id].valores || {};
+                        const score = profesionalesSubitemRawScore(subitem, valores);
+                        return `<td class="score-cell"><strong data-prof-composite="${subitem.id}:${postulante.id}">${formatNumber(score)}</strong></td>`;
+                      }).join("")}
+                    </tr>
+                  `,
+                  ...compositeParts.map((part) => `
+                    <tr>
+                      <th class="matrix-label subitem-nested-label">${part.label}<span>${formatNumber(part.points)} puntos por unidad</span></th>
+                      ${state.postulantes.map((postulante) => {
+                        const fieldId = professionalCompositeFieldId(subitem, part.kind);
+                        const value = cargas[postulante.id].valores[fieldId] ?? "";
+                        const difference = activeProfesionalesCargaId === "consolidada" && module.modalidad === "evaluadores"
+                          ? antecedentDifference(module, postulante.id, fieldId)
+                          : { differs: false, explanation: "" };
+                        return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-prof-value="${fieldId}" data-prof-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                      }).join("")}
+                    </tr>
+                  `)
+                ];
+              }
+              return `
+                <tr>
+                  <th class="matrix-label">${subitem.nombre}<span>${formatNumber(subitem.puntos)} puntos por unidad</span></th>
+                  ${state.postulantes.map((postulante) => {
+                    const value = cargas[postulante.id].valores[subitem.id] ?? "";
+                    const difference = activeProfesionalesCargaId === "consolidada" && module.modalidad === "evaluadores"
+                      ? antecedentDifference(module, postulante.id, subitem.id)
+                      : { differs: false, explanation: "" };
+                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-prof-value="${subitem.id}" data-prof-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                  }).join("")}
+                </tr>
+              `;
+            }).join("")}
             <tr class="teaching-subtotal-row">
               <th class="matrix-label">Subtotal ${tipo.nombre}<span>Se aplica el tope de ${formatNumber(tipo.maxInterno)}</span></th>
               ${state.postulantes.map((postulante) => `
@@ -4164,7 +4248,9 @@ function renderProfesionalesMatrix() {
   container.querySelectorAll("[data-prof-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
       const postulanteId = event.target.dataset.postulanteId;
-      cargas[postulanteId].valores[event.target.dataset.profValue] = event.target.value;
+      const value = event.target.value === "" ? "" : String(Math.max(0, Math.trunc(Number(event.target.value) || 0)));
+      if (event.target.value !== value) event.target.value = value;
+      cargas[postulanteId].valores[event.target.dataset.profValue] = value;
       if (activeProfesionalesCargaId === "consolidada") {
         updateProfesionalesCandidate(postulanteId);
       } else {
@@ -4179,6 +4265,14 @@ function renderProfesionalesMatrix() {
 
 function updateProfesionalesCandidate(postulanteId, cargas = state.antecedentesProfesionales.cargas) {
   state.antecedentesProfesionales.tipos.forEach((tipo) => {
+    tipo.subitems.forEach((subitem) => {
+      if (!professionalCompositeParts(subitem)) return;
+      const composite = document.querySelector(`[data-prof-composite="${subitem.id}:${postulanteId}"]`);
+      if (!composite) return;
+      const valores = cargas[postulanteId]?.valores || {};
+      composite.textContent = formatNumber(profesionalesSubitemRawScore(subitem, valores));
+      updateCalculation(composite, profesionalesSubitemExplanationLines(subitem, valores).join("\n") || "Sin datos cargados.");
+    });
     const subtotal = document.querySelector(`[data-prof-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
       subtotal.textContent = formatNumber(profesionalesTipoScore(tipo, postulanteId, cargas));
@@ -4856,6 +4950,16 @@ function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {
             rows.push([
               `${subitem.nombre} · ${part.label}`,
               ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, extensionCompositeFieldId(subitem, part.kind)))
+            ]);
+          });
+          return;
+        }
+        const professionalParts = moduleKey === "antecedentesProfesionales" ? professionalCompositeParts(subitem) : null;
+        if (professionalParts) {
+          professionalParts.forEach((part) => {
+            rows.push([
+              `${subitem.nombre} · ${part.label}`,
+              ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, professionalCompositeFieldId(subitem, part.kind)))
             ]);
           });
           return;
