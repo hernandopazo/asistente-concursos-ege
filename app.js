@@ -323,8 +323,9 @@ const initialState = {
         maxInterno: 5,
         instruccion: "Ingrese la cantidad de antecedentes según duración o función profesional.",
         subitems: [
-          { id: "prof_tres_anos_editor", nombre: "Tres años o más / editor asociado", puntos: 2.5 },
-          { id: "prof_menos_tres_editorial", nombre: "Menos de tres años / comité editorial / invitado", puntos: 1.5 }
+          { id: "prof_tres_anos_editor", nombre: "Editor asociado (3 años o más)", puntos: 2.5 },
+          { id: "prof_menos_tres_editorial", nombre: "Editor asociado (menos de 3 años)", puntos: 1.5 },
+          { id: "prof_editor_invitado", nombre: "Editor invitado", puntos: 0.33 }
         ]
       },
       {
@@ -333,7 +334,8 @@ const initialState = {
         maxInterno: 7,
         instruccion: "Ingrese la cantidad de servicios, asesorías o convenios realizados.",
         subitems: [
-          { id: "prof_oat_stan", nombre: "OAT o STAN (asesoría)", puntos: 1.5 },
+          { id: "prof_oat_stan", nombre: "Director OAT/STAN", puntos: 1.5 },
+          { id: "prof_asesoramiento", nombre: "Asesoramiento", puntos: 0.75 },
           { id: "prof_convenios", nombre: "Convenios", puntos: 2 },
           { id: "prof_extension_covid", nombre: "Extensión COVID", puntos: 1 }
         ]
@@ -1771,7 +1773,28 @@ function profesionalesSubitemExplanationLines(subitem, valores) {
     : [];
 }
 
+function ensureProfessionalSubitem(tipo, subitem, afterId = null) {
+  if (!tipo) return null;
+  const existing = tipo.subitems.find((item) => item.id === subitem.id);
+  if (existing) {
+    Object.assign(existing, subitem);
+    return existing;
+  }
+  const afterIndex = afterId ? tipo.subitems.findIndex((item) => item.id === afterId) : -1;
+  tipo.subitems.splice(afterIndex >= 0 ? afterIndex + 1 : tipo.subitems.length, 0, subitem);
+  return subitem;
+}
+
 function normalizeProfessionalCompositeItems(module) {
+  const cargoTipo = module?.tipos?.find((tipo) => tipo.id === "cargo_profesional");
+  ensureProfessionalSubitem(cargoTipo, { id: "prof_tres_anos_editor", nombre: "Editor asociado (3 años o más)", puntos: 2.5 });
+  ensureProfessionalSubitem(cargoTipo, { id: "prof_menos_tres_editorial", nombre: "Editor asociado (menos de 3 años)", puntos: 1.5 }, "prof_tres_anos_editor");
+  ensureProfessionalSubitem(cargoTipo, { id: "prof_editor_invitado", nombre: "Editor invitado", puntos: 0.33 }, "prof_menos_tres_editorial");
+
+  const conveniosTipo = module?.tipos?.find((tipo) => tipo.id === "convenios_oat_stan");
+  ensureProfessionalSubitem(conveniosTipo, { id: "prof_oat_stan", nombre: "Director OAT/STAN", puntos: 1.5 });
+  ensureProfessionalSubitem(conveniosTipo, { id: "prof_asesoramiento", nombre: "Asesoramiento", puntos: 0.75 }, "prof_oat_stan");
+
   const subitem = module?.tipos
     ?.find((tipo) => tipo.id === "otros_profesionales")
     ?.subitems?.find((item) => item.id === "prof_organizacion_congresos");
