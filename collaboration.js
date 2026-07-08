@@ -937,6 +937,8 @@
   window.collaboration = {
     scheduleSave,
     applyPermissions,
+    currentEvaluatorKey: () => currentMember?.evaluator_key || null,
+    currentRole: () => currentMember?.role || null,
     client
   };
 

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 25;
+const DATA_VERSION = 26;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -1114,8 +1114,8 @@ function antecedentCargas(module, activeId) {
     : module.cargasEvaluadores[activeId] || module.cargas;
 }
 
-function participatingEvaluators(module) {
-  return state.oposicion.evaluadores.filter((evaluador) => module.participacion[evaluador.id] !== false);
+function participatingEvaluators(_module) {
+  return state.oposicion.evaluadores;
 }
 
 function antecedentDifference(module, postulanteId, fieldId) {
@@ -1130,7 +1130,7 @@ function antecedentDifference(module, postulanteId, fieldId) {
     differs: entries.length > 1 && distinct.size > 1,
     explanation: entries.length
       ? entries.map((entry) => `${entry.nombre}: ${formatNumber(entry.valor)}`).join("\n")
-      : "Ningún evaluador participante cargó este valor."
+      : "Ningún evaluador cargó este valor."
   };
 }
 
@@ -1156,22 +1156,21 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
   }[moduleKey];
   const container = document.querySelector(`#${prefix}-evaluation-controls`);
   const individual = module.modalidad === "evaluadores";
+  const currentEvaluatorKey = window.collaboration?.currentEvaluatorKey?.();
+  const canLockActiveLoad = individual && activeId !== "consolidada" && activeId === currentEvaluatorKey;
+  const activeLoadLocked = canLockActiveLoad && window.isEvaluatorLocked?.(activeId);
   container.innerHTML = `
     <div class="evaluation-mode-selector">
       <span>Modalidad de carga</span>
       <label><input type="radio" name="${prefix}-mode" value="unica" ${individual ? "" : "checked"}> Carga única de la comisión</label>
       <label><input type="radio" name="${prefix}-mode" value="evaluadores" ${individual ? "checked" : ""}> Carga independiente por evaluador</label>
+      ${canLockActiveLoad ? `
+        <button type="button" class="secondary-button evaluator-load-lock ${activeLoadLocked ? "is-locked" : ""}" data-evaluator-load-lock="${activeId}" aria-pressed="${activeLoadLocked ? "true" : "false"}">
+          ${activeLoadLocked ? "Volver a editar mi carga" : "Bloquear mi carga"}
+        </button>
+      ` : ""}
     </div>
     ${individual ? `
-      <div class="evaluator-participation">
-        <strong>Evaluadores participantes</strong>
-        ${state.oposicion.evaluadores.map((evaluador) => `
-          <label>
-            <input type="checkbox" data-${prefix}-participation="${evaluador.id}" ${module.participacion[evaluador.id] !== false ? "checked" : ""}>
-            ${evaluador.nombre}
-          </label>
-        `).join("")}
-      </div>
       <div class="evaluator-tabs antecedent-evaluator-tabs">
         <button type="button" class="evaluator-tab ${activeId === "consolidada" ? "is-active" : ""}" data-${prefix}-load="consolidada">Carga consolidada</button>
         ${participatingEvaluators(module).map((evaluador) => `
@@ -1180,7 +1179,9 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
       </div>
       <p class="evaluation-mode-note">${activeId === "consolidada"
         ? "Los campos con diferencias entre evaluadores se resaltan. Esta carga es la utilizada en Resultados."
-        : "Esta carga es individual y no modifica Resultados hasta ser incorporada en la carga consolidada."}</p>
+        : activeLoadLocked
+          ? "Su carga está bloqueada para evitar cambios accidentales. Puede volver a editarla cuando lo necesite."
+          : "Esta carga es individual y no modifica Resultados hasta ser incorporada en la carga consolidada."}</p>
     ` : `<p class="evaluation-mode-note">La tabla actual es la carga consolidada utilizada en Resultados.</p>`}
   `;
   container.querySelectorAll(`input[name="${prefix}-mode"]`).forEach((input) => {
@@ -1190,12 +1191,12 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
       render();
     });
   });
-  container.querySelectorAll(`[data-${prefix}-participation]`).forEach((input) => {
-    input.addEventListener("change", () => {
-      module.participacion[input.dataset[`${prefix}Participation`]] = input.checked;
-      setActiveId("consolidada");
-      render();
-    });
+  container.querySelector("[data-evaluator-load-lock]")?.addEventListener("click", (event) => {
+    const evaluatorId = event.currentTarget.dataset.evaluatorLoadLock;
+    const nextLocked = !window.isEvaluatorLocked?.(evaluatorId);
+    window.setEvaluatorLocked?.(evaluatorId, nextLocked);
+    window.collaboration?.scheduleSave?.();
+    render();
   });
   container.querySelectorAll(`[data-${prefix}-load]`).forEach((button) => {
     button.addEventListener("click", () => {
@@ -2139,6 +2140,9 @@ function renderEvaluadores() {
   }
 
   const evaluador = state.oposicion.evaluadores[evalIndex];
+  const currentEvaluatorKey = window.collaboration?.currentEvaluatorKey?.();
+  const canLockActiveEvaluator = activeEvaluatorId === currentEvaluatorKey;
+  const activeEvaluatorLocked = canLockActiveEvaluator && window.isEvaluatorLocked?.(activeEvaluatorId);
   const candidateHeaders = state.postulantes.map((postulante) => `
     <th>${candidateNameHtml(postulante)}</th>
   `).join("");
@@ -2182,6 +2186,14 @@ function renderEvaluadores() {
 
   container.innerHTML = `
     <section class="evaluator evaluator-colored-load" style="${evaluatorStyle(evaluador.id)}">
+      ${canLockActiveEvaluator ? `
+        <div class="load-lock-row">
+          <button type="button" class="secondary-button evaluator-load-lock ${activeEvaluatorLocked ? "is-locked" : ""}" data-opposition-load-lock="${activeEvaluatorId}" aria-pressed="${activeEvaluatorLocked ? "true" : "false"}">
+            ${activeEvaluatorLocked ? "Volver a editar mi carga" : "Bloquear mi carga"}
+          </button>
+          <span>${activeEvaluatorLocked ? "Su carga está bloqueada para evitar cambios accidentales." : "Bloquee su carga cuando quiera evitar cambios accidentales."}</span>
+        </div>
+      ` : ""}
       <div class="opposition-grid">
         <table class="data-table opposition-matrix">
           <thead>
@@ -2216,6 +2228,14 @@ function renderEvaluadores() {
       </div>
     </section>
   `;
+
+  container.querySelector("[data-opposition-load-lock]")?.addEventListener("click", (event) => {
+    const evaluatorId = event.currentTarget.dataset.oppositionLoadLock;
+    const nextLocked = !window.isEvaluatorLocked?.(evaluatorId);
+    window.setEvaluatorLocked?.(evaluatorId, nextLocked);
+    window.collaboration?.scheduleSave?.();
+    renderEvaluadores();
+  });
 
   container.querySelectorAll("[data-meta]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -2649,9 +2669,6 @@ function renderDocentesMatrix() {
   const container = document.querySelector("#docentes-matrix");
   const module = state.antecedentesDocentes;
   if (module.modalidad !== "evaluadores") activeDocentesCargaId = "consolidada";
-  if (activeDocentesCargaId !== "consolidada" && module.participacion[activeDocentesCargaId] === false) {
-    activeDocentesCargaId = "consolidada";
-  }
   const cargas = antecedentCargas(module, activeDocentesCargaId);
   renderAntecedentEvaluationControls(
     "antecedentesDocentes",
@@ -3228,9 +3245,6 @@ function renderCientificosMatrix() {
   const container = document.querySelector("#cientificos-matrix");
   const module = state.antecedentesCientificos;
   if (module.modalidad !== "evaluadores") activeCientificosCargaId = "consolidada";
-  if (activeCientificosCargaId !== "consolidada" && module.participacion[activeCientificosCargaId] === false) {
-    activeCientificosCargaId = "consolidada";
-  }
   const cargas = antecedentCargas(module, activeCientificosCargaId);
   renderAntecedentEvaluationControls(
     "antecedentesCientificos",
@@ -3554,9 +3568,6 @@ function renderExtensionMatrix() {
   const container = document.querySelector("#extension-matrix");
   const module = state.antecedentesExtension;
   if (module.modalidad !== "evaluadores") activeExtensionCargaId = "consolidada";
-  if (activeExtensionCargaId !== "consolidada" && module.participacion[activeExtensionCargaId] === false) {
-    activeExtensionCargaId = "consolidada";
-  }
   const cargas = antecedentCargas(module, activeExtensionCargaId);
   renderAntecedentEvaluationControls(
     "antecedentesExtension",
@@ -3862,9 +3873,6 @@ function renderProfesionalesMatrix() {
   const container = document.querySelector("#profesionales-matrix");
   const module = state.antecedentesProfesionales;
   if (module.modalidad !== "evaluadores") activeProfesionalesCargaId = "consolidada";
-  if (activeProfesionalesCargaId !== "consolidada" && module.participacion[activeProfesionalesCargaId] === false) {
-    activeProfesionalesCargaId = "consolidada";
-  }
   const cargas = antecedentCargas(module, activeProfesionalesCargaId);
   renderAntecedentEvaluationControls(
     "antecedentesProfesionales",
@@ -4181,9 +4189,6 @@ function renderOtrosMatrix() {
   const container = document.querySelector("#otros-matrix");
   const module = state.otrosAntecedentes;
   if (module.modalidad !== "evaluadores") activeOtrosCargaId = "consolidada";
-  if (activeOtrosCargaId !== "consolidada" && module.participacion[activeOtrosCargaId] === false) {
-    activeOtrosCargaId = "consolidada";
-  }
   const cargas = antecedentCargas(module, activeOtrosCargaId);
   renderAntecedentEvaluationControls(
     "otrosAntecedentes",
