@@ -1978,17 +1978,6 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
   color: #9f241b;
 }
 
-.evaluator-load-lock {
-  margin-left: auto;
-}
-
-.load-lock-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-  color: #667386;
-  font-weight: 700;
+.evaluator-load-lock[hidden] {
+  display: none;
 }

@@ -92,7 +92,6 @@
             <span id="collaboration-role"></span>
           </div>
           <div class="session-actions">
-            <button id="evaluator-lock-toggle" class="secondary-button" type="button" hidden>Bloquear mi carga</button>
             <button id="auth-sign-out" class="secondary-button" type="button">Salir de la cuenta</button>
           </div>
         </section>
@@ -382,7 +381,10 @@
               <h3>Evaluadores</h3>
               <p>Seleccioná un integrante de la comisión para cargar notas de 1 a 10 o comparar sus calificaciones. Los nombres se administran en el encabezado.</p>
             </div>
-            <button id="export-oposicion-excel" class="secondary-button" type="button">Descargar Excel</button>
+            <div class="section-actions">
+              <button id="lock-oposicion-load" class="secondary-button evaluator-load-lock" type="button" hidden>Bloquear mi carga</button>
+              <button id="export-oposicion-excel" class="secondary-button" type="button">Descargar Excel</button>
+            </div>
           </div>
           <div id="evaluador-tabs" class="evaluator-tabs" role="tablist" aria-label="Evaluadores"></div>
           <div id="evaluadores-list"></div>
@@ -423,7 +425,10 @@
               <h3>Carga por postulante</h3>
               <p>Ingrese el valor solicitado en cada bloque. Los subtotales y puntajes relativizados se calculan automáticamente.</p>
             </div>
-            <button id="export-docentes-excel" class="secondary-button" type="button">Descargar Excel</button>
+            <div class="section-actions">
+              <button id="lock-docentes-load" class="secondary-button evaluator-load-lock" type="button" hidden>Bloquear mi carga</button>
+              <button id="export-docentes-excel" class="secondary-button" type="button">Descargar Excel</button>
+            </div>
           </div>
           <div id="docentes-evaluation-controls" class="antecedent-evaluation-controls"></div>
           <div id="docentes-matrix"></div>
@@ -464,7 +469,10 @@
               <h3>Carga por postulante</h3>
               <p>Ingrese cantidades por categoría. Cada bloque aplica su propio tope antes de calcular los puntajes finales.</p>
             </div>
-            <button id="export-cientificos-excel" class="secondary-button" type="button">Descargar Excel</button>
+            <div class="section-actions">
+              <button id="lock-cientificos-load" class="secondary-button evaluator-load-lock" type="button" hidden>Bloquear mi carga</button>
+              <button id="export-cientificos-excel" class="secondary-button" type="button">Descargar Excel</button>
+            </div>
           </div>
           <div id="cientificos-evaluation-controls" class="antecedent-evaluation-controls"></div>
           <div id="cientificos-matrix"></div>
@@ -505,7 +513,10 @@
               <h3>Carga por postulante</h3>
               <p>Ingrese cantidades por categoría. Cada bloque aplica su propio tope antes de calcular los puntajes finales.</p>
             </div>
-            <button id="export-extension-excel" class="secondary-button" type="button">Descargar Excel</button>
+            <div class="section-actions">
+              <button id="lock-extension-load" class="secondary-button evaluator-load-lock" type="button" hidden>Bloquear mi carga</button>
+              <button id="export-extension-excel" class="secondary-button" type="button">Descargar Excel</button>
+            </div>
           </div>
           <div id="extension-evaluation-controls" class="antecedent-evaluation-controls"></div>
           <div id="extension-matrix"></div>
@@ -546,7 +557,10 @@
               <h3>Carga por postulante</h3>
               <p>Ingrese cantidades por categoría. Cada bloque aplica su propio tope antes de calcular los puntajes finales.</p>
             </div>
-            <button id="export-profesionales-excel" class="secondary-button" type="button">Descargar Excel</button>
+            <div class="section-actions">
+              <button id="lock-profesionales-load" class="secondary-button evaluator-load-lock" type="button" hidden>Bloquear mi carga</button>
+              <button id="export-profesionales-excel" class="secondary-button" type="button">Descargar Excel</button>
+            </div>
           </div>
           <div id="profesionales-evaluation-controls" class="antecedent-evaluation-controls"></div>
           <div id="profesionales-matrix"></div>
@@ -597,7 +611,10 @@
               <h3>Carga por postulante</h3>
               <p>Ingrese cantidades por categoría. Se aplican primero los topes de bloque y luego el tope general.</p>
             </div>
-            <button id="export-otros-excel" class="secondary-button" type="button">Descargar Excel</button>
+            <div class="section-actions">
+              <button id="lock-otros-load" class="secondary-button evaluator-load-lock" type="button" hidden>Bloquear mi carga</button>
+              <button id="export-otros-excel" class="secondary-button" type="button">Descargar Excel</button>
+            </div>
           </div>
           <div id="otros-evaluation-controls" class="antecedent-evaluation-controls"></div>
           <div id="otros-matrix"></div>

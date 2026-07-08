@@ -403,11 +403,13 @@
     document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
     document.querySelector("#manage-access").disabled = !currentCompetition;
     const lockButton = document.querySelector("#evaluator-lock-toggle");
-    const locked = Boolean(currentMember?.evaluator_key && window.isEvaluatorLocked?.(currentMember.evaluator_key));
-    lockButton.hidden = !currentMember?.evaluator_key;
-    lockButton.textContent = locked ? "Volver a editar mi carga" : "Bloquear mi carga";
-    lockButton.classList.toggle("is-locked", locked);
-    lockButton.setAttribute("aria-pressed", locked ? "true" : "false");
+    if (lockButton) {
+      const locked = Boolean(currentMember?.evaluator_key && window.isEvaluatorLocked?.(currentMember.evaluator_key));
+      lockButton.hidden = !currentMember?.evaluator_key;
+      lockButton.textContent = locked ? "Volver a editar mi carga" : "Bloquear mi carga";
+      lockButton.classList.toggle("is-locked", locked);
+      lockButton.setAttribute("aria-pressed", locked ? "true" : "false");
+    }
     fillEvaluatorOptions();
   }
 

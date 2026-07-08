@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 26;
+const DATA_VERSION = 27;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -1015,6 +1015,24 @@ function setEvaluatorLocked(evaluatorId, locked) {
   window.collaboration?.applyPermissions?.();
 }
 
+function updateLoadLockButton(buttonId, evaluatorId, canShow, rerender) {
+  const button = document.querySelector(`#${buttonId}`);
+  if (!button) return;
+  const show = Boolean(canShow && evaluatorId);
+  const locked = show && isEvaluatorLocked(evaluatorId);
+  button.hidden = !show;
+  button.textContent = locked ? "Volver a editar mi carga" : "Bloquear mi carga";
+  button.classList.toggle("is-locked", locked);
+  button.setAttribute("aria-pressed", locked ? "true" : "false");
+  button.dataset.evaluatorLoadLock = evaluatorId || "";
+  button.onclick = () => {
+    const nextLocked = !isEvaluatorLocked(evaluatorId);
+    setEvaluatorLocked(evaluatorId, nextLocked);
+    window.collaboration?.scheduleSave?.();
+    rerender?.();
+  };
+}
+
 window.isEvaluatorLocked = isEvaluatorLocked;
 window.setEvaluatorLocked = setEvaluatorLocked;
 
@@ -1164,11 +1182,6 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
       <span>Modalidad de carga</span>
       <label><input type="radio" name="${prefix}-mode" value="unica" ${individual ? "" : "checked"}> Carga única de la comisión</label>
       <label><input type="radio" name="${prefix}-mode" value="evaluadores" ${individual ? "checked" : ""}> Carga independiente por evaluador</label>
-      ${canLockActiveLoad ? `
-        <button type="button" class="secondary-button evaluator-load-lock ${activeLoadLocked ? "is-locked" : ""}" data-evaluator-load-lock="${activeId}" aria-pressed="${activeLoadLocked ? "true" : "false"}">
-          ${activeLoadLocked ? "Volver a editar mi carga" : "Bloquear mi carga"}
-        </button>
-      ` : ""}
     </div>
     ${individual ? `
       <div class="evaluator-tabs antecedent-evaluator-tabs">
@@ -1184,19 +1197,13 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
           : "Esta carga es individual y no modifica Resultados hasta ser incorporada en la carga consolidada."}</p>
     ` : `<p class="evaluation-mode-note">La tabla actual es la carga consolidada utilizada en Resultados.</p>`}
   `;
+  updateLoadLockButton(`lock-${prefix}-load`, activeId, canLockActiveLoad, rerender);
   container.querySelectorAll(`input[name="${prefix}-mode"]`).forEach((input) => {
     input.addEventListener("change", () => {
       module.modalidad = input.value;
       setActiveId("consolidada");
       render();
     });
-  });
-  container.querySelector("[data-evaluator-load-lock]")?.addEventListener("click", (event) => {
-    const evaluatorId = event.currentTarget.dataset.evaluatorLoadLock;
-    const nextLocked = !window.isEvaluatorLocked?.(evaluatorId);
-    window.setEvaluatorLocked?.(evaluatorId, nextLocked);
-    window.collaboration?.scheduleSave?.();
-    render();
   });
   container.querySelectorAll(`[data-${prefix}-load]`).forEach((button) => {
     button.addEventListener("click", () => {
@@ -2142,7 +2149,6 @@ function renderEvaluadores() {
   const evaluador = state.oposicion.evaluadores[evalIndex];
   const currentEvaluatorKey = window.collaboration?.currentEvaluatorKey?.();
   const canLockActiveEvaluator = activeEvaluatorId === currentEvaluatorKey;
-  const activeEvaluatorLocked = canLockActiveEvaluator && window.isEvaluatorLocked?.(activeEvaluatorId);
   const candidateHeaders = state.postulantes.map((postulante) => `
     <th>${candidateNameHtml(postulante)}</th>
   `).join("");
@@ -2186,14 +2192,6 @@ function renderEvaluadores() {
 
   container.innerHTML = `
     <section class="evaluator evaluator-colored-load" style="${evaluatorStyle(evaluador.id)}">
-      ${canLockActiveEvaluator ? `
-        <div class="load-lock-row">
-          <button type="button" class="secondary-button evaluator-load-lock ${activeEvaluatorLocked ? "is-locked" : ""}" data-opposition-load-lock="${activeEvaluatorId}" aria-pressed="${activeEvaluatorLocked ? "true" : "false"}">
-            ${activeEvaluatorLocked ? "Volver a editar mi carga" : "Bloquear mi carga"}
-          </button>
-          <span>${activeEvaluatorLocked ? "Su carga está bloqueada para evitar cambios accidentales." : "Bloquee su carga cuando quiera evitar cambios accidentales."}</span>
-        </div>
-      ` : ""}
       <div class="opposition-grid">
         <table class="data-table opposition-matrix">
           <thead>
@@ -2229,13 +2227,7 @@ function renderEvaluadores() {
     </section>
   `;
 
-  container.querySelector("[data-opposition-load-lock]")?.addEventListener("click", (event) => {
-    const evaluatorId = event.currentTarget.dataset.oppositionLoadLock;
-    const nextLocked = !window.isEvaluatorLocked?.(evaluatorId);
-    window.setEvaluatorLocked?.(evaluatorId, nextLocked);
-    window.collaboration?.scheduleSave?.();
-    renderEvaluadores();
-  });
+  updateLoadLockButton("lock-oposicion-load", activeEvaluatorId, canLockActiveEvaluator, renderEvaluadores);
 
   container.querySelectorAll("[data-meta]").forEach((input) => {
     input.addEventListener("input", (event) => {
