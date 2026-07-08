@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 29;
+const DATA_VERSION = 30;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -300,7 +300,7 @@ const initialState = {
           { id: "ext_libros_cuadernillos", nombre: "Libros y cuadernillos", puntos: 1.5, modo: "libros_cuadernillos", cuadernilloFactor: 0.33 },
           { id: "ext_articulos_capitulos", nombre: "Artículos o capítulos de libros", puntos: 0.15 },
           { id: "ext_entrevistas_articulacion", nombre: "Articulación con otros niveles educativos o entrevistas", puntos: 0.08 },
-          { id: "ext_congresos_organizacion", nombre: "Presentación de proyectos en congresos u organización", puntos: 0.3 },
+          { id: "ext_congresos_organizacion", nombre: "Presentaciones en congresos y organización", puntos: 0.3, modo: "organizacion_congreso", congresoFactor: 0.33 },
           { id: "ext_otros", nombre: "Otros antecedentes de extensión", puntos: 0.2 },
           { id: "ext_covid", nombre: "Extensión COVID", puntos: 0.75 }
         ]
@@ -719,6 +719,13 @@ function migrateState(savedState) {
     extensionBooks.cuadernilloFactor ??= 0.33;
     extensionBooks.puntos = Number(extensionBooks.puntos || 1.5) || 1.5;
   }
+  const extensionCongress = extensionPublications?.subitems?.find((item) => item.id === "ext_congresos_organizacion");
+  if (extensionCongress) {
+    extensionCongress.nombre = "Presentaciones en congresos y organización";
+    extensionCongress.modo = "organizacion_congreso";
+    extensionCongress.congresoFactor ??= 0.33;
+    extensionCongress.puntos = Number(extensionCongress.puntos || 0.3) || 0.3;
+  }
   savedState.antecedentesProfesionales ||= clone(initialState.antecedentesProfesionales);
   savedState.antecedentesProfesionales.modalidad ||= "unica";
   savedState.antecedentesProfesionales.participacion ||= {};
@@ -912,11 +919,12 @@ function seedExtension(nextState = state) {
     const valores = cargas[postulante.id].valores;
     module.tipos.forEach((tipo) => {
       tipo.subitems.forEach((subitem) => {
-        if (subitem.modo === "libros_cuadernillos") {
-          const libroField = extensionBookletFieldId(subitem, "libro");
-          const cuadernilloField = extensionBookletFieldId(subitem, "cuadernillo");
-          if (valores[libroField] === undefined) valores[libroField] = valores[subitem.id] ?? "";
-          if (valores[cuadernilloField] === undefined) valores[cuadernilloField] = "";
+        const compositeParts = extensionCompositeParts(subitem);
+        if (compositeParts) {
+          compositeParts.forEach((part, index) => {
+            const fieldId = extensionCompositeFieldId(subitem, part.kind);
+            if (valores[fieldId] === undefined) valores[fieldId] = index === 0 ? (valores[subitem.id] ?? "") : "";
+          });
           return;
         }
         if (valores[subitem.id] === undefined) valores[subitem.id] = "";
@@ -1538,31 +1546,47 @@ function getExtensionMaxExclusiva() {
   return Number(getRubro("extension")?.exclusiva || 0);
 }
 
-function extensionBookletFieldId(subitem, kind) {
+function extensionCompositeFieldId(subitem, kind) {
   return `${subitem.id}_${kind}`;
 }
 
-function extensionSubitemRawScore(subitem, valores) {
+function extensionCompositeParts(subitem) {
   if (subitem.modo === "libros_cuadernillos") {
-    const libro = Number(valores[extensionBookletFieldId(subitem, "libro")] || 0);
-    const cuadernillo = Number(valores[extensionBookletFieldId(subitem, "cuadernillo")] || 0);
     const libroPoints = Number(subitem.puntos || 0);
-    const cuadernilloPoints = libroPoints * Number(subitem.cuadernilloFactor ?? 0.33);
-    return libro * libroPoints + cuadernillo * cuadernilloPoints;
+    return [
+      { kind: "libro", label: "Libros", points: libroPoints },
+      { kind: "cuadernillo", label: "Cuadernillos", points: libroPoints * Number(subitem.cuadernilloFactor ?? 0.33) }
+    ];
+  }
+  if (subitem.modo === "organizacion_congreso") {
+    const organizacionPoints = Number(subitem.puntos || 0);
+    return [
+      { kind: "organizacion", label: "Organización", points: organizacionPoints },
+      { kind: "congreso", label: "Presentación de proyectos en congreso", points: organizacionPoints * Number(subitem.congresoFactor ?? 0.33) }
+    ];
+  }
+  return null;
+}
+
+function extensionSubitemRawScore(subitem, valores) {
+  const parts = extensionCompositeParts(subitem);
+  if (parts) {
+    return parts.reduce((sum, part) => {
+      return sum + Number(valores[extensionCompositeFieldId(subitem, part.kind)] || 0) * Number(part.points || 0);
+    }, 0);
   }
   return Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0);
 }
 
 function extensionSubitemExplanationLines(subitem, valores) {
-  if (subitem.modo === "libros_cuadernillos") {
-    const libro = Number(valores[extensionBookletFieldId(subitem, "libro")] || 0);
-    const cuadernillo = Number(valores[extensionBookletFieldId(subitem, "cuadernillo")] || 0);
-    const libroPoints = Number(subitem.puntos || 0);
-    const cuadernilloPoints = libroPoints * Number(subitem.cuadernilloFactor ?? 0.33);
-    return [
-      libro ? `Libros: ${formatNumber(libro)} × ${formatNumber(libroPoints)} = ${formatNumber(libro * libroPoints)}` : "",
-      cuadernillo ? `Cuadernillos: ${formatNumber(cuadernillo)} × ${formatNumber(cuadernilloPoints)} = ${formatNumber(cuadernillo * cuadernilloPoints)}` : ""
-    ].filter(Boolean);
+  const parts = extensionCompositeParts(subitem);
+  if (parts) {
+    return parts
+      .map((part) => {
+        const quantity = Number(valores[extensionCompositeFieldId(subitem, part.kind)] || 0);
+        return quantity ? `${part.label}: ${formatNumber(quantity)} × ${formatNumber(part.points)} = ${formatNumber(quantity * Number(part.points || 0))}` : "";
+      })
+      .filter(Boolean);
   }
   const cantidad = Number(valores[subitem.id] || 0);
   return cantidad
@@ -3629,14 +3653,12 @@ function renderExtensionMatrix() {
           </thead>
           <tbody>
             ${tipo.subitems.flatMap((subitem) => {
-              if (subitem.modo === "libros_cuadernillos") {
-                const libroField = extensionBookletFieldId(subitem, "libro");
-                const cuadernilloField = extensionBookletFieldId(subitem, "cuadernillo");
-                const cuadernilloPoints = Number(subitem.puntos || 0) * Number(subitem.cuadernilloFactor ?? 0.33);
+              const compositeParts = extensionCompositeParts(subitem);
+              if (compositeParts) {
                 return [
                   `
                     <tr class="extension-composite-heading">
-                      <th class="matrix-label">${subitem.nombre}<span>Libro ${formatNumber(subitem.puntos)} · Cuadernillo ${formatNumber(cuadernilloPoints)}</span></th>
+                      <th class="matrix-label">${subitem.nombre}<span>${compositeParts.map((part) => `${part.label} ${formatNumber(part.points)}`).join(" · ")}</span></th>
                       ${state.postulantes.map((postulante) => {
                         const valores = cargas[postulante.id].valores || {};
                         const score = extensionSubitemRawScore(subitem, valores);
@@ -3644,18 +3666,16 @@ function renderExtensionMatrix() {
                       }).join("")}
                     </tr>
                   `,
-                  ...[
-                    { field: libroField, label: "Libros", points: Number(subitem.puntos || 0) },
-                    { field: cuadernilloField, label: "Cuadernillos", points: cuadernilloPoints }
-                  ].map((item) => `
+                  ...compositeParts.map((part) => `
                     <tr>
-                      <th class="matrix-label subitem-nested-label">${item.label}<span>${formatNumber(item.points)} puntos por unidad</span></th>
+                      <th class="matrix-label subitem-nested-label">${part.label}<span>${formatNumber(part.points)} puntos por unidad</span></th>
                       ${state.postulantes.map((postulante) => {
-                        const value = cargas[postulante.id].valores[item.field] ?? "";
+                        const fieldId = extensionCompositeFieldId(subitem, part.kind);
+                        const value = cargas[postulante.id].valores[fieldId] ?? "";
                         const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
-                          ? antecedentDifference(module, postulante.id, item.field)
+                          ? antecedentDifference(module, postulante.id, fieldId)
                           : { differs: false, explanation: "" };
-                        return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-ext-value="${item.field}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                        return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-ext-value="${fieldId}" data-ext-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
                       }).join("")}
                     </tr>
                   `)
@@ -3669,7 +3689,9 @@ function renderExtensionMatrix() {
                     const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
                       ? antecedentDifference(module, postulante.id, subitem.id)
                       : { differs: false, explanation: "" };
-                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-ext-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                    const integerAttrs = tipo.id === "publicaciones_divulgacion" ? 'step="1" inputmode="numeric" data-ext-integer="true"' : 'step="0.01"';
+                    const displayValue = value === "" ? "" : editableNumber(value, tipo.id === "publicaciones_divulgacion" ? 0 : 2);
+                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" ${integerAttrs} value="${displayValue}" data-ext-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
                   }).join("")}
                 </tr>
               `;
@@ -3725,6 +3747,10 @@ function renderExtensionMatrix() {
   container.querySelectorAll("[data-ext-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
       const postulanteId = event.target.dataset.postulanteId;
+      if (event.target.dataset.extInteger === "true" && event.target.value !== "") {
+        const integerValue = Math.max(0, Math.round(Number(event.target.value) || 0));
+        event.target.value = String(integerValue);
+      }
       cargas[postulanteId].valores[event.target.dataset.extValue] = event.target.value;
       if (activeExtensionCargaId === "consolidada") {
         updateExtensionCandidate(postulanteId);
@@ -3741,12 +3767,12 @@ function renderExtensionMatrix() {
 function updateExtensionCandidate(postulanteId, cargas = state.antecedentesExtension.cargas) {
   state.antecedentesExtension.tipos.forEach((tipo) => {
     tipo.subitems.forEach((subitem) => {
-      if (subitem.modo !== "libros_cuadernillos") return;
+      if (!extensionCompositeParts(subitem)) return;
       const composite = document.querySelector(`[data-ext-composite="${subitem.id}:${postulanteId}"]`);
       if (!composite) return;
       const valores = cargas[postulanteId]?.valores || {};
       composite.textContent = formatNumber(extensionSubitemRawScore(subitem, valores));
-      updateCalculation(composite, extensionSubitemExplanationLines(subitem, valores).join("\n") || "Sin libros ni cuadernillos cargados.");
+      updateCalculation(composite, extensionSubitemExplanationLines(subitem, valores).join("\n") || "Sin datos cargados.");
     });
     const subtotal = document.querySelector(`[data-ext-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
@@ -4720,15 +4746,14 @@ function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {
       });
     } else {
       tipo.subitems.forEach((subitem) => {
-        if (moduleKey === "antecedentesExtension" && subitem.modo === "libros_cuadernillos") {
-          rows.push([
-            `${subitem.nombre} · Libros`,
-            ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, extensionBookletFieldId(subitem, "libro")))
-          ]);
-          rows.push([
-            `${subitem.nombre} · Cuadernillos`,
-            ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, extensionBookletFieldId(subitem, "cuadernillo")))
-          ]);
+        const extensionParts = moduleKey === "antecedentesExtension" ? extensionCompositeParts(subitem) : null;
+        if (extensionParts) {
+          extensionParts.forEach((part) => {
+            rows.push([
+              `${subitem.nombre} · ${part.label}`,
+              ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, extensionCompositeFieldId(subitem, part.kind)))
+            ]);
+          });
           return;
         }
         rows.push([
