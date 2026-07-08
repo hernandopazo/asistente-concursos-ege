@@ -1123,9 +1123,10 @@ function teachingOriginPoint(subitem, originId) {
   return Number(subitem.puntajesOrigen?.[originId] ?? subitem.puntos ?? 0);
 }
 
-function naturalYears(value) {
+function positiveYears(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.round((number + Number.EPSILON) * 10) / 10);
 }
 
 function scoreReachesCap(rawScore, cap) {
@@ -1145,7 +1146,7 @@ function docentesSubitemRawScore(subitem, carga) {
   if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
     return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
       sum
-        + naturalYears(carga?.valores[teachingOriginFieldId(subitem.id, origin.id)])
+        + positiveYears(carga?.valores[teachingOriginFieldId(subitem.id, origin.id)])
         * teachingOriginPoint(subitem, origin.id)
     ), 0);
   }
@@ -1155,7 +1156,7 @@ function docentesSubitemRawScore(subitem, carga) {
 function teachingOriginYears(subitem, postulanteId, cargas) {
   const valores = cargas[postulanteId]?.valores || {};
   return TEACHING_APPOINTMENT_ORIGINS.reduce((sum, origin) => (
-    sum + naturalYears(valores[teachingOriginFieldId(subitem.id, origin.id)])
+    sum + positiveYears(valores[teachingOriginFieldId(subitem.id, origin.id)])
   ), 0);
 }
 
@@ -1163,7 +1164,7 @@ function teachingOriginExplanation(subitem, postulanteId, cargas) {
   const valores = cargas[postulanteId]?.valores || {};
   const lines = TEACHING_APPOINTMENT_ORIGINS
     .map((origin) => {
-      const years = naturalYears(valores[teachingOriginFieldId(subitem.id, origin.id)]);
+      const years = positiveYears(valores[teachingOriginFieldId(subitem.id, origin.id)]);
       const points = teachingOriginPoint(subitem, origin.id);
       return years ? `${origin.nombre}: ${formatNumber(years)} años × ${formatNumber(points)} = ${formatNumber(years * points)}` : "";
     })
@@ -2495,12 +2496,12 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
       ${TEACHING_APPOINTMENT_ORIGINS.map((origin) => {
         const fieldId = teachingOriginFieldId(subitem.id, origin.id);
         const storedValue = cargas[postulante.id].valores[fieldId] ?? "";
-        const value = storedValue === "" ? "" : naturalYears(storedValue);
+        const value = storedValue === "" ? "" : positiveYears(storedValue);
         const points = teachingOriginPoint(subitem, origin.id);
         return `
           <label>
             <span>${origin.nombre}</span>
-            <input type="number" min="0" step="1" inputmode="numeric" value="${value}" data-teaching-origin-value="${fieldId}" aria-label="Años en ${escapeAttribute(origin.nombre)}">
+            <input type="number" min="0" step="0.1" inputmode="decimal" value="${value === "" ? "" : editableNumber(value, 1)}" data-teaching-origin-value="${fieldId}" aria-label="Años en ${escapeAttribute(origin.nombre)}">
             <small>${formatNumber(points)} base · S ${formatNumber(docentesRelativizedValue(points, getDocentesMaxSimple()))} · E ${formatNumber(docentesRelativizedValue(points, getDocentesMaxExclusiva()))}</small>
           </label>
         `;
@@ -2522,9 +2523,8 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
     input.addEventListener("input", (event) => {
       const fieldId = event.target.dataset.teachingOriginValue;
       const rawValue = event.target.value;
-      const naturalValue = rawValue === "" ? "" : naturalYears(rawValue);
-      event.target.value = naturalValue;
-      cargas[postulante.id].valores[fieldId] = naturalValue;
+      const decimalValue = rawValue === "" ? "" : positiveYears(rawValue);
+      cargas[postulante.id].valores[fieldId] = decimalValue;
       if (activeDocentesCargaId !== "consolidada") {
         syncConsolidatedAntecedentField(module, postulante.id, fieldId);
       }
