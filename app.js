@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 31;
+const DATA_VERSION = 32;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -117,15 +117,16 @@ const initialState = {
       { id: "tiempo", nombre: "Distribución y uso del tiempo", peso: 0.5 }
     ],
     evaluadores: [
-      { id: "eval_1", nombre: "Evaluador 1", color: "#d8a21b", evaluaciones: {} },
-      { id: "eval_2", nombre: "Evaluador 2", color: "#2d7fb8", evaluaciones: {} },
-      { id: "eval_3", nombre: "Evaluador 3", color: "#5b9b52", evaluaciones: {} }
+      { id: "eval_1", nombre: "Evaluador 1", color: "#d8a21b", evaluaciones: {}, anotaciones: "" },
+      { id: "eval_2", nombre: "Evaluador 2", color: "#2d7fb8", evaluaciones: {}, anotaciones: "" },
+      { id: "eval_3", nombre: "Evaluador 3", color: "#5b9b52", evaluaciones: {}, anotaciones: "" }
     ]
   },
   antecedentesDocentes: {
     modalidad: "unica",
     participacion: {},
     cargasEvaluadores: {},
+    anotaciones: {},
     factorDege: 0.9,
     factorOtroDepto: 0.8,
     tipos: [
@@ -187,6 +188,7 @@ const initialState = {
     modalidad: "unica",
     participacion: {},
     cargasEvaluadores: {},
+    anotaciones: {},
     tipos: [
       {
         id: "publicaciones",
@@ -268,6 +270,7 @@ const initialState = {
     modalidad: "unica",
     participacion: {},
     cargasEvaluadores: {},
+    anotaciones: {},
     tipos: [
       {
         id: "proyectos_extension",
@@ -312,6 +315,7 @@ const initialState = {
     modalidad: "unica",
     participacion: {},
     cargasEvaluadores: {},
+    anotaciones: {},
     tipos: [
       {
         id: "cargo_profesional",
@@ -354,6 +358,7 @@ const initialState = {
     modalidad: "unica",
     participacion: {},
     cargasEvaluadores: {},
+    anotaciones: {},
     maxInternoTotal: 5,
     tipos: [
       {
@@ -694,6 +699,7 @@ function migrateState(savedState) {
   savedState.antecedentesDocentes.modalidad ||= "unica";
   savedState.antecedentesDocentes.participacion ||= {};
   savedState.antecedentesDocentes.cargasEvaluadores ||= {};
+  savedState.antecedentesDocentes.anotaciones ||= {};
   savedState.antecedentesDocentes.factorDege ??= initialState.antecedentesDocentes.factorDege;
   savedState.antecedentesDocentes.factorOtroDepto ??= initialState.antecedentesDocentes.factorOtroDepto;
   const normalizedCargo = savedState.antecedentesDocentes.tipos?.find((tipo) => tipo.id === "cargo");
@@ -706,11 +712,13 @@ function migrateState(savedState) {
   savedState.antecedentesCientificos.modalidad ||= "unica";
   savedState.antecedentesCientificos.participacion ||= {};
   savedState.antecedentesCientificos.cargasEvaluadores ||= {};
+  savedState.antecedentesCientificos.anotaciones ||= {};
   normalizeSingleScorePublicationGroups(savedState.antecedentesCientificos);
   savedState.antecedentesExtension ||= clone(initialState.antecedentesExtension);
   savedState.antecedentesExtension.modalidad ||= "unica";
   savedState.antecedentesExtension.participacion ||= {};
   savedState.antecedentesExtension.cargasEvaluadores ||= {};
+  savedState.antecedentesExtension.anotaciones ||= {};
   const extensionPublications = savedState.antecedentesExtension.tipos?.find((tipo) => tipo.id === "publicaciones_divulgacion");
   const extensionBooks = extensionPublications?.subitems?.find((item) => item.id === "ext_libros_cuadernillos");
   if (extensionBooks) {
@@ -730,10 +738,12 @@ function migrateState(savedState) {
   savedState.antecedentesProfesionales.modalidad ||= "unica";
   savedState.antecedentesProfesionales.participacion ||= {};
   savedState.antecedentesProfesionales.cargasEvaluadores ||= {};
+  savedState.antecedentesProfesionales.anotaciones ||= {};
   savedState.otrosAntecedentes ||= clone(initialState.otrosAntecedentes);
   savedState.otrosAntecedentes.modalidad ||= "unica";
   savedState.otrosAntecedentes.participacion ||= {};
   savedState.otrosAntecedentes.cargasEvaluadores ||= {};
+  savedState.otrosAntecedentes.anotaciones ||= {};
   savedState.otrosAntecedentes.maxInternoTotal ??= initialState.otrosAntecedentes.maxInternoTotal;
   savedState.scoreConfigurationLocks ||= {};
   Object.keys(initialState.scoreConfigurationLocks).forEach((key) => {
@@ -748,6 +758,7 @@ function migrateState(savedState) {
   savedState.oposicion.evaluadores.forEach((evaluador, index) => {
     evaluador.color ||= evaluatorColors[index % evaluatorColors.length];
     evaluador.nombre = String(evaluador.nombre || "").trim() || `Evaluador ${index + 1}`;
+    evaluador.anotaciones ||= "";
     savedState.evaluatorLocks[evaluador.id] = Boolean(savedState.evaluatorLocks[evaluador.id]);
   });
   delete savedState.postulantesSort;
@@ -856,9 +867,12 @@ function seedDocentes(nextState = state) {
   module.cargas ||= {};
   module.cargasEvaluadores ||= {};
   module.participacion ||= {};
+  module.anotaciones ||= {};
+  module.anotaciones.consolidada ||= "";
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
+    module.anotaciones[evaluador.id] ||= "";
   });
   [module.cargas, ...Object.values(module.cargasEvaluadores)].forEach((cargas) => nextState.postulantes.forEach((postulante) => {
     cargas[postulante.id] ||= { valores: {} };
@@ -889,9 +903,12 @@ function seedCientificos(nextState = state) {
   module.cargas ||= {};
   module.cargasEvaluadores ||= {};
   module.participacion ||= {};
+  module.anotaciones ||= {};
+  module.anotaciones.consolidada ||= "";
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
+    module.anotaciones[evaluador.id] ||= "";
   });
   [module.cargas, ...Object.values(module.cargasEvaluadores)].forEach((cargas) => nextState.postulantes.forEach((postulante) => {
     cargas[postulante.id] ||= { valores: {} };
@@ -910,9 +927,12 @@ function seedExtension(nextState = state) {
   module.cargas ||= {};
   module.cargasEvaluadores ||= {};
   module.participacion ||= {};
+  module.anotaciones ||= {};
+  module.anotaciones.consolidada ||= "";
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
+    module.anotaciones[evaluador.id] ||= "";
   });
   [module.cargas, ...Object.values(module.cargasEvaluadores)].forEach((cargas) => nextState.postulantes.forEach((postulante) => {
     cargas[postulante.id] ||= { valores: {} };
@@ -939,9 +959,12 @@ function seedProfesionales(nextState = state) {
   module.cargas ||= {};
   module.cargasEvaluadores ||= {};
   module.participacion ||= {};
+  module.anotaciones ||= {};
+  module.anotaciones.consolidada ||= "";
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
+    module.anotaciones[evaluador.id] ||= "";
   });
   [module.cargas, ...Object.values(module.cargasEvaluadores)].forEach((cargas) => nextState.postulantes.forEach((postulante) => {
     cargas[postulante.id] ||= { valores: {} };
@@ -960,9 +983,12 @@ function seedOtros(nextState = state) {
   module.cargas ||= {};
   module.cargasEvaluadores ||= {};
   module.participacion ||= {};
+  module.anotaciones ||= {};
+  module.anotaciones.consolidada ||= "";
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
+    module.anotaciones[evaluador.id] ||= "";
   });
   [module.cargas, ...Object.values(module.cargasEvaluadores)].forEach((cargas) => nextState.postulantes.forEach((postulante) => {
     cargas[postulante.id] ||= { valores: {} };
@@ -1065,6 +1091,13 @@ function escapeAttribute(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
@@ -1235,6 +1268,29 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
       setActiveId(button.dataset[`${prefix}Load`]);
       rerender();
     });
+  });
+}
+
+function renderAntecedentNotesSection(module, activeId) {
+  const label = activeId === "consolidada"
+    ? "Carga consolidada"
+    : state.oposicion.evaluadores.find((evaluador) => evaluador.id === activeId)?.nombre || "Evaluador";
+  const value = module.anotaciones?.[activeId] || "";
+  return `
+    <section class="load-annotations">
+      <label>
+        <span>Anotaciones — ${escapeAttribute(label)}</span>
+        <textarea rows="4" data-antecedent-notes="${activeId}">${escapeHtml(value)}</textarea>
+      </label>
+    </section>
+  `;
+}
+
+function attachAntecedentNotesHandler(container, module, activeId) {
+  container.querySelector("[data-antecedent-notes]")?.addEventListener("input", (event) => {
+    module.anotaciones ||= {};
+    module.anotaciones[activeId] = event.target.value;
+    saveState();
   });
 }
 
@@ -2137,14 +2193,19 @@ function removeEvaluator(evaluatorId) {
   const removed = state.oposicion.evaluadores.splice(index, 1)[0];
   delete state.antecedentesDocentes.participacion[removed.id];
   delete state.antecedentesDocentes.cargasEvaluadores[removed.id];
+  delete state.antecedentesDocentes.anotaciones[removed.id];
   delete state.antecedentesCientificos.participacion[removed.id];
   delete state.antecedentesCientificos.cargasEvaluadores[removed.id];
+  delete state.antecedentesCientificos.anotaciones[removed.id];
   delete state.antecedentesExtension.participacion[removed.id];
   delete state.antecedentesExtension.cargasEvaluadores[removed.id];
+  delete state.antecedentesExtension.anotaciones[removed.id];
   delete state.antecedentesProfesionales.participacion[removed.id];
   delete state.antecedentesProfesionales.cargasEvaluadores[removed.id];
+  delete state.antecedentesProfesionales.anotaciones[removed.id];
   delete state.otrosAntecedentes.participacion[removed.id];
   delete state.otrosAntecedentes.cargasEvaluadores[removed.id];
+  delete state.otrosAntecedentes.anotaciones[removed.id];
   activeEvaluatorId = state.oposicion.evaluadores[0]?.id || null;
   render();
 }
@@ -2301,10 +2362,20 @@ function renderEvaluadores() {
           </tbody>
         </table>
       </div>
+      <section class="load-annotations">
+        <label>
+          <span>Anotaciones — ${escapeAttribute(evaluador.nombre)}</span>
+          <textarea rows="4" data-opposition-annotations="${evaluador.id}">${escapeHtml(evaluador.anotaciones || "")}</textarea>
+        </label>
+      </section>
     </section>
   `;
 
   updateLoadLockButton("lock-oposicion-load", activeEvaluatorId, canLockActiveEvaluator, renderEvaluadores);
+  container.querySelector("[data-opposition-annotations]")?.addEventListener("input", (event) => {
+    evaluador.anotaciones = event.target.value;
+    saveState();
+  });
 
   container.querySelectorAll("[data-meta]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -2546,11 +2617,12 @@ function updateDocentesConfigDerived() {
 
 function restoreDocentesDefaults() {
   const cargas = state.antecedentesDocentes.cargas;
-  const { modalidad, participacion, cargasEvaluadores } = state.antecedentesDocentes;
+  const { modalidad, participacion, cargasEvaluadores, anotaciones } = state.antecedentesDocentes;
   state.antecedentesDocentes = {
     modalidad,
     participacion,
     cargasEvaluadores,
+    anotaciones,
     factorDege: initialState.antecedentesDocentes.factorDege,
     factorOtroDepto: initialState.antecedentesDocentes.factorOtroDepto,
     tipos: clone(initialState.antecedentesDocentes.tipos),
@@ -2853,9 +2925,12 @@ function renderDocentesMatrix() {
           </tbody>
         </table>
       </div>
+      ${renderAntecedentNotesSection(module, activeDocentesCargaId)}
       <dialog id="teaching-origin-editor" class="publication-editor teaching-origin-editor"></dialog>
     </div>
   `;
+
+  attachAntecedentNotesHandler(container, module, activeDocentesCargaId);
 
   const cargoType = module.tipos.find((tipo) => tipo.id === "cargo");
   if (cargoType) {
@@ -3170,11 +3245,12 @@ function renderCientificosConfigSummary() {
 
 function restoreCientificosDefaults() {
   const cargas = state.antecedentesCientificos.cargas;
-  const { modalidad, participacion, cargasEvaluadores } = state.antecedentesCientificos;
+  const { modalidad, participacion, cargasEvaluadores, anotaciones } = state.antecedentesCientificos;
   state.antecedentesCientificos = {
     modalidad,
     participacion,
     cargasEvaluadores,
+    anotaciones,
     tipos: clone(initialState.antecedentesCientificos.tipos),
     cargas
   };
@@ -3399,9 +3475,12 @@ function renderCientificosMatrix() {
         </tbody>
       </table>
       </div>
+      ${renderAntecedentNotesSection(module, activeCientificosCargaId)}
       <dialog id="publication-editor" class="publication-editor"></dialog>
     </div>
   `;
+
+  attachAntecedentNotesHandler(container, module, activeCientificosCargaId);
 
   const publicationType = module.tipos.find((tipo) => tipo.id === "publicaciones");
   if (publicationType) {
@@ -3621,11 +3700,12 @@ function renderExtensionConfigSummary() {
 
 function restoreExtensionDefaults() {
   const cargas = state.antecedentesExtension.cargas;
-  const { modalidad, participacion, cargasEvaluadores } = state.antecedentesExtension;
+  const { modalidad, participacion, cargasEvaluadores, anotaciones } = state.antecedentesExtension;
   state.antecedentesExtension = {
     modalidad,
     participacion,
     cargasEvaluadores,
+    anotaciones,
     tipos: clone(initialState.antecedentesExtension.tipos),
     cargas
   };
@@ -3754,8 +3834,11 @@ function renderExtensionMatrix() {
           </tbody>
         </table>
       </div>
+      ${renderAntecedentNotesSection(module, activeExtensionCargaId)}
     </div>
   `;
+
+  attachAntecedentNotesHandler(container, module, activeExtensionCargaId);
 
   container.querySelectorAll("[data-ext-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -3972,11 +4055,12 @@ function renderProfesionalesConfigSummary() {
 
 function restoreProfesionalesDefaults() {
   const cargas = state.antecedentesProfesionales.cargas;
-  const { modalidad, participacion, cargasEvaluadores } = state.antecedentesProfesionales;
+  const { modalidad, participacion, cargasEvaluadores, anotaciones } = state.antecedentesProfesionales;
   state.antecedentesProfesionales = {
     modalidad,
     participacion,
     cargasEvaluadores,
+    anotaciones,
     tipos: clone(initialState.antecedentesProfesionales.tipos),
     cargas
   };
@@ -4071,8 +4155,11 @@ function renderProfesionalesMatrix() {
           </tbody>
         </table>
       </div>
+      ${renderAntecedentNotesSection(module, activeProfesionalesCargaId)}
     </div>
   `;
+
+  attachAntecedentNotesHandler(container, module, activeProfesionalesCargaId);
 
   container.querySelectorAll("[data-prof-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -4287,11 +4374,12 @@ function renderOtrosConfigSummary() {
 
 function restoreOtrosDefaults() {
   const cargas = state.otrosAntecedentes.cargas;
-  const { modalidad, participacion, cargasEvaluadores } = state.otrosAntecedentes;
+  const { modalidad, participacion, cargasEvaluadores, anotaciones } = state.otrosAntecedentes;
   state.otrosAntecedentes = {
     modalidad,
     participacion,
     cargasEvaluadores,
+    anotaciones,
     maxInternoTotal: initialState.otrosAntecedentes.maxInternoTotal,
     tipos: clone(initialState.otrosAntecedentes.tipos),
     cargas
@@ -4387,8 +4475,11 @@ function renderOtrosMatrix() {
           </tbody>
         </table>
       </div>
+      ${renderAntecedentNotesSection(module, activeOtrosCargaId)}
     </div>
   `;
+
+  attachAntecedentNotesHandler(container, module, activeOtrosCargaId);
 
   container.querySelectorAll("[data-otros-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -4808,6 +4899,9 @@ function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {
     rows.push(["Total Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxExclusiva()) : "")]);
   }
 
+  const annotation = module.anotaciones?.[activeId] || "";
+  if (annotation) rows.push([], ["Anotaciones", annotation]);
+
   exportWorkbook(rows, title.slice(0, 31), `${filename}-${activeId}`, [42, ...state.postulantes.map(() => 20)]);
 }
 
@@ -4824,6 +4918,7 @@ function exportOposicionExcel() {
       ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.notas?.[criterio.id] ?? "")
     ]),
     ["Comentarios", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.comentarios || "")],
+    ["Anotaciones", evaluador.anotaciones || ""],
     ["Nota Simple", ...state.postulantes.map((postulante) => postulante.simple ? notaEvaluador(evaluador, postulante.id) : "")],
     ["Nota Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)) : "")],
     ["Simple promedio", ...state.postulantes.map((postulante) => postulante.simple ? promedioOposicion(postulante.id) : "")],

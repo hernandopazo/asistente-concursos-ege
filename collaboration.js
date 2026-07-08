@@ -101,9 +101,12 @@
     const shared = clone(state);
     shared.oposicion.evaluadores.forEach((evaluador) => {
       evaluador.evaluaciones = {};
+      evaluador.anotaciones = "";
     });
     moduleKeys.forEach((key) => {
+      const consolidatedNotes = shared[key].anotaciones?.consolidada || "";
       shared[key].cargasEvaluadores = {};
+      shared[key].anotaciones = { consolidada: consolidatedNotes };
     });
     return shared;
   }
@@ -114,9 +117,13 @@
       evaluatorKey,
       locked: Boolean(state.evaluatorLocks?.[evaluatorKey]),
       oppositionEvaluations: clone(evaluador?.evaluaciones || {}),
+      oppositionAnnotations: evaluador?.anotaciones || "",
       modules: Object.fromEntries(moduleKeys.map((key) => [
         key,
-        clone(state[key].cargasEvaluadores[evaluatorKey] || {})
+        {
+          cargas: clone(state[key].cargasEvaluadores[evaluatorKey] || {}),
+          anotaciones: state[key].anotaciones?.[evaluatorKey] || ""
+        }
       ]))
     };
   }
@@ -129,9 +136,13 @@
     state.evaluatorLocks[evaluatorKey] = Boolean(remoteState.data.locked);
     if (evaluador) {
       evaluador.evaluaciones = clone(remoteState.data.oppositionEvaluations || {});
+      evaluador.anotaciones = remoteState.data.oppositionAnnotations || "";
     }
     moduleKeys.forEach((key) => {
-      state[key].cargasEvaluadores[evaluatorKey] = clone(remoteState.data.modules?.[key] || {});
+      const remoteModule = remoteState.data.modules?.[key];
+      state[key].cargasEvaluadores[evaluatorKey] = clone(remoteModule?.cargas || remoteModule || {});
+      state[key].anotaciones ||= {};
+      state[key].anotaciones[evaluatorKey] = remoteModule?.anotaciones || "";
     });
     window.normalizeSingleScorePublicationGroups?.(state.antecedentesCientificos);
   }
@@ -734,11 +745,11 @@
       "#evaluadores-list input, #evaluadores-list textarea",
       (!isAdmin && activeEvaluatorId !== evaluatorKey) || oppositionOwnLocked
     );
-    setDisabled("#docentes-matrix input", (activeDocentesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeDocentesCargaId === evaluatorKey));
-    setDisabled("#cientificos-matrix input", (activeCientificosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeCientificosCargaId === evaluatorKey));
-    setDisabled("#extension-matrix input", (activeExtensionCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeExtensionCargaId === evaluatorKey));
-    setDisabled("#profesionales-matrix input", (activeProfesionalesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeProfesionalesCargaId === evaluatorKey));
-    setDisabled("#otros-matrix input", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
+    setDisabled("#docentes-matrix input, #docentes-matrix textarea", (activeDocentesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeDocentesCargaId === evaluatorKey));
+    setDisabled("#cientificos-matrix input, #cientificos-matrix textarea", (activeCientificosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeCientificosCargaId === evaluatorKey));
+    setDisabled("#extension-matrix input, #extension-matrix textarea", (activeExtensionCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeExtensionCargaId === evaluatorKey));
+    setDisabled("#profesionales-matrix input, #profesionales-matrix textarea", (activeProfesionalesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeProfesionalesCargaId === evaluatorKey));
+    setDisabled("#otros-matrix input, #otros-matrix textarea", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
     setDisabled("#teaching-origin-editor input", ownLoadLocked && activeDocentesCargaId === evaluatorKey);
     setDisabled("#publication-editor input", ownLoadLocked && activeCientificosCargaId === evaluatorKey);
 

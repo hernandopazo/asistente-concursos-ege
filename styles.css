@@ -1990,3 +1990,26 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
 .extension-composite-heading td {
   background: #eef3f6;
 }
+
+
+.load-annotations {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7f9fa;
+}
+
+.load-annotations label {
+  display: grid;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.load-annotations textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  font: inherit;
+  font-weight: 500;
+}
