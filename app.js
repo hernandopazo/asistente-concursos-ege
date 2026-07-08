@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 28;
+const DATA_VERSION = 29;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -297,7 +297,7 @@ const initialState = {
         maxInterno: 3,
         instruccion: "Ingrese la cantidad de publicaciones o actividades correspondientes.",
         subitems: [
-          { id: "ext_libros_cuadernillos", nombre: "Libros o cuadernillos", puntos: 1.5 },
+          { id: "ext_libros_cuadernillos", nombre: "Libros y cuadernillos", puntos: 1.5, modo: "libros_cuadernillos", cuadernilloFactor: 0.33 },
           { id: "ext_articulos_capitulos", nombre: "Artículos o capítulos de libros", puntos: 0.15 },
           { id: "ext_entrevistas_articulacion", nombre: "Articulación con otros niveles educativos o entrevistas", puntos: 0.08 },
           { id: "ext_congresos_organizacion", nombre: "Presentación de proyectos en congresos u organización", puntos: 0.3 },
@@ -711,6 +711,14 @@ function migrateState(savedState) {
   savedState.antecedentesExtension.modalidad ||= "unica";
   savedState.antecedentesExtension.participacion ||= {};
   savedState.antecedentesExtension.cargasEvaluadores ||= {};
+  const extensionPublications = savedState.antecedentesExtension.tipos?.find((tipo) => tipo.id === "publicaciones_divulgacion");
+  const extensionBooks = extensionPublications?.subitems?.find((item) => item.id === "ext_libros_cuadernillos");
+  if (extensionBooks) {
+    extensionBooks.nombre = "Libros y cuadernillos";
+    extensionBooks.modo = "libros_cuadernillos";
+    extensionBooks.cuadernilloFactor ??= 0.33;
+    extensionBooks.puntos = Number(extensionBooks.puntos || 1.5) || 1.5;
+  }
   savedState.antecedentesProfesionales ||= clone(initialState.antecedentesProfesionales);
   savedState.antecedentesProfesionales.modalidad ||= "unica";
   savedState.antecedentesProfesionales.participacion ||= {};
@@ -904,6 +912,13 @@ function seedExtension(nextState = state) {
     const valores = cargas[postulante.id].valores;
     module.tipos.forEach((tipo) => {
       tipo.subitems.forEach((subitem) => {
+        if (subitem.modo === "libros_cuadernillos") {
+          const libroField = extensionBookletFieldId(subitem, "libro");
+          const cuadernilloField = extensionBookletFieldId(subitem, "cuadernillo");
+          if (valores[libroField] === undefined) valores[libroField] = valores[subitem.id] ?? "";
+          if (valores[cuadernilloField] === undefined) valores[cuadernilloField] = "";
+          return;
+        }
         if (valores[subitem.id] === undefined) valores[subitem.id] = "";
       });
     });
@@ -1523,11 +1538,41 @@ function getExtensionMaxExclusiva() {
   return Number(getRubro("extension")?.exclusiva || 0);
 }
 
+function extensionBookletFieldId(subitem, kind) {
+  return `${subitem.id}_${kind}`;
+}
+
+function extensionSubitemRawScore(subitem, valores) {
+  if (subitem.modo === "libros_cuadernillos") {
+    const libro = Number(valores[extensionBookletFieldId(subitem, "libro")] || 0);
+    const cuadernillo = Number(valores[extensionBookletFieldId(subitem, "cuadernillo")] || 0);
+    const libroPoints = Number(subitem.puntos || 0);
+    const cuadernilloPoints = libroPoints * Number(subitem.cuadernilloFactor ?? 0.33);
+    return libro * libroPoints + cuadernillo * cuadernilloPoints;
+  }
+  return Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0);
+}
+
+function extensionSubitemExplanationLines(subitem, valores) {
+  if (subitem.modo === "libros_cuadernillos") {
+    const libro = Number(valores[extensionBookletFieldId(subitem, "libro")] || 0);
+    const cuadernillo = Number(valores[extensionBookletFieldId(subitem, "cuadernillo")] || 0);
+    const libroPoints = Number(subitem.puntos || 0);
+    const cuadernilloPoints = libroPoints * Number(subitem.cuadernilloFactor ?? 0.33);
+    return [
+      libro ? `Libros: ${formatNumber(libro)} × ${formatNumber(libroPoints)} = ${formatNumber(libro * libroPoints)}` : "",
+      cuadernillo ? `Cuadernillos: ${formatNumber(cuadernillo)} × ${formatNumber(cuadernilloPoints)} = ${formatNumber(cuadernillo * cuadernilloPoints)}` : ""
+    ].filter(Boolean);
+  }
+  const cantidad = Number(valores[subitem.id] || 0);
+  return cantidad
+    ? [`${subitem.nombre}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`]
+    : [];
+}
+
 function extensionTipoRawScore(tipo, postulanteId, cargas = state.antecedentesExtension.cargas) {
   const valores = cargas[postulanteId]?.valores || {};
-  return tipo.subitems.reduce((sum, subitem) => {
-    return sum + Number(valores[subitem.id] || 0) * Number(subitem.puntos || 0);
-  }, 0);
+  return tipo.subitems.reduce((sum, subitem) => sum + extensionSubitemRawScore(subitem, valores), 0);
 }
 
 function extensionTipoScore(tipo, postulanteId, cargas = state.antecedentesExtension.cargas) {
@@ -1536,12 +1581,7 @@ function extensionTipoScore(tipo, postulanteId, cargas = state.antecedentesExten
 
 function extensionTipoExplanation(tipo, postulanteId, cargas = state.antecedentesExtension.cargas) {
   const valores = cargas[postulanteId]?.valores || {};
-  const lines = tipo.subitems
-    .filter((subitem) => Number(valores[subitem.id] || 0) !== 0)
-    .map((subitem) => {
-      const cantidad = Number(valores[subitem.id] || 0);
-      return `${subitem.nombre}: ${formatNumber(cantidad)} × ${formatNumber(subitem.puntos)} = ${formatNumber(cantidad * Number(subitem.puntos || 0))}`;
-    });
+  const lines = tipo.subitems.flatMap((subitem) => extensionSubitemExplanationLines(subitem, valores));
   const raw = extensionTipoRawScore(tipo, postulanteId, cargas);
   const capped = extensionTipoScore(tipo, postulanteId, cargas);
   const capNote = scoreReachesCap(raw, tipo.maxInterno)
@@ -3588,18 +3628,52 @@ function renderExtensionMatrix() {
             </tr>
           </thead>
           <tbody>
-            ${tipo.subitems.map((subitem) => `
-              <tr>
-                <th class="matrix-label">${subitem.nombre}<span>${formatNumber(subitem.puntos)} puntos por unidad</span></th>
-                ${state.postulantes.map((postulante) => {
-                  const value = cargas[postulante.id].valores[subitem.id] ?? "";
-                  const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
-                    ? antecedentDifference(module, postulante.id, subitem.id)
-                    : { differs: false, explanation: "" };
-                  return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-ext-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
-                }).join("")}
-              </tr>
-            `).join("")}
+            ${tipo.subitems.flatMap((subitem) => {
+              if (subitem.modo === "libros_cuadernillos") {
+                const libroField = extensionBookletFieldId(subitem, "libro");
+                const cuadernilloField = extensionBookletFieldId(subitem, "cuadernillo");
+                const cuadernilloPoints = Number(subitem.puntos || 0) * Number(subitem.cuadernilloFactor ?? 0.33);
+                return [
+                  `
+                    <tr class="extension-composite-heading">
+                      <th class="matrix-label">${subitem.nombre}<span>Libro ${formatNumber(subitem.puntos)} · Cuadernillo ${formatNumber(cuadernilloPoints)}</span></th>
+                      ${state.postulantes.map((postulante) => {
+                        const valores = cargas[postulante.id].valores || {};
+                        const score = extensionSubitemRawScore(subitem, valores);
+                        return `<td class="score-cell"><strong data-ext-composite="${subitem.id}:${postulante.id}">${formatNumber(score)}</strong></td>`;
+                      }).join("")}
+                    </tr>
+                  `,
+                  ...[
+                    { field: libroField, label: "Libros", points: Number(subitem.puntos || 0) },
+                    { field: cuadernilloField, label: "Cuadernillos", points: cuadernilloPoints }
+                  ].map((item) => `
+                    <tr>
+                      <th class="matrix-label subitem-nested-label">${item.label}<span>${formatNumber(item.points)} puntos por unidad</span></th>
+                      ${state.postulantes.map((postulante) => {
+                        const value = cargas[postulante.id].valores[item.field] ?? "";
+                        const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
+                          ? antecedentDifference(module, postulante.id, item.field)
+                          : { differs: false, explanation: "" };
+                        return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-ext-value="${item.field}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                      }).join("")}
+                    </tr>
+                  `)
+                ];
+              }
+              return `
+                <tr>
+                  <th class="matrix-label">${subitem.nombre}<span>${formatNumber(subitem.puntos)} puntos por unidad</span></th>
+                  ${state.postulantes.map((postulante) => {
+                    const value = cargas[postulante.id].valores[subitem.id] ?? "";
+                    const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
+                      ? antecedentDifference(module, postulante.id, subitem.id)
+                      : { differs: false, explanation: "" };
+                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-ext-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                  }).join("")}
+                </tr>
+              `;
+            }).join("")}
             <tr class="teaching-subtotal-row">
               <th class="matrix-label">Subtotal ${tipo.nombre}<span>Se aplica el tope de ${formatNumber(tipo.maxInterno)}</span></th>
               ${state.postulantes.map((postulante) => `
@@ -3666,6 +3740,14 @@ function renderExtensionMatrix() {
 
 function updateExtensionCandidate(postulanteId, cargas = state.antecedentesExtension.cargas) {
   state.antecedentesExtension.tipos.forEach((tipo) => {
+    tipo.subitems.forEach((subitem) => {
+      if (subitem.modo !== "libros_cuadernillos") return;
+      const composite = document.querySelector(`[data-ext-composite="${subitem.id}:${postulanteId}"]`);
+      if (!composite) return;
+      const valores = cargas[postulanteId]?.valores || {};
+      composite.textContent = formatNumber(extensionSubitemRawScore(subitem, valores));
+      updateCalculation(composite, extensionSubitemExplanationLines(subitem, valores).join("\n") || "Sin libros ni cuadernillos cargados.");
+    });
     const subtotal = document.querySelector(`[data-ext-subtotal="${tipo.id}:${postulanteId}"]`);
     if (subtotal) {
       subtotal.textContent = formatNumber(extensionTipoScore(tipo, postulanteId, cargas));
@@ -4638,6 +4720,17 @@ function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {
       });
     } else {
       tipo.subitems.forEach((subitem) => {
+        if (moduleKey === "antecedentesExtension" && subitem.modo === "libros_cuadernillos") {
+          rows.push([
+            `${subitem.nombre} · Libros`,
+            ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, extensionBookletFieldId(subitem, "libro")))
+          ]);
+          rows.push([
+            `${subitem.nombre} · Cuadernillos`,
+            ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, extensionBookletFieldId(subitem, "cuadernillo")))
+          ]);
+          return;
+        }
         rows.push([
           subitem.nombre,
           ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, subitem.id))
