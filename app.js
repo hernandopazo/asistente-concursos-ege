@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 30;
+const DATA_VERSION = 31;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -1250,6 +1250,17 @@ function positiveYears(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.max(0, Math.round((number + Number.EPSILON) * 10) / 10);
+}
+
+function positiveInteger(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.round(number));
+}
+
+function normalizeIntegerInput(input) {
+  if (input.value === "") return;
+  input.value = String(positiveInteger(input.value));
 }
 
 function scoreReachesCap(rawScore, cap) {
@@ -3252,7 +3263,7 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
         return `
           <label>
             <span>${escapeAttribute(scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre)}</span>
-            <input type="number" min="0" step="1" value="${value === "" ? "" : editableNumber(value, 2)}" data-publication-value="${subitem.id}" aria-label="Cantidad: ${escapeAttribute(scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre)}">
+            <input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-publication-value="${subitem.id}" aria-label="Cantidad: ${escapeAttribute(scientificPublicationGroupIsSingleScore(group) ? group.nombre : subitem.posicionNombre)}">
             <small>S ${formatNumber(simple)} · E ${formatNumber(exclusive)}</small>
           </label>
         `;
@@ -3272,6 +3283,7 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
 
   dialog.querySelectorAll("[data-publication-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
+      normalizeIntegerInput(event.target);
       const subitemId = event.target.dataset.publicationValue;
       cargas[postulante.id].valores[subitemId] = event.target.value;
       if (activeCientificosCargaId !== "consolidada") {
@@ -3338,7 +3350,7 @@ function renderCientificosMatrix() {
                   const difference = activeCientificosCargaId === "consolidada" && module.modalidad === "evaluadores"
                     ? antecedentDifference(module, postulante.id, subitem.id)
                     : { differs: false, explanation: "" };
-                  return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="0.01" value="${value === "" ? "" : editableNumber(value, 2)}" data-cien-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                  return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-cien-value="${subitem.id}" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
                 }).join("")}
               </tr>
             `).join("")}
@@ -3406,6 +3418,7 @@ function renderCientificosMatrix() {
 
   container.querySelectorAll("[data-cien-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
+      normalizeIntegerInput(event.target);
       const postulanteId = event.target.dataset.postulanteId;
       cargas[postulanteId].valores[event.target.dataset.cienValue] = event.target.value;
       if (activeCientificosCargaId === "consolidada") {
@@ -5052,8 +5065,14 @@ document.addEventListener("focusout", (event) => {
 
 document.addEventListener("change", (event) => {
   if (event.target.type !== "number" || event.target.value === "") return;
+  if (event.target.matches("[data-cien-value], [data-publication-value]")) {
+    const previous = event.target.value;
+    normalizeIntegerInput(event.target);
+    if (event.target.value !== previous) event.target.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
   const usesTwoDecimals = event.target.matches(
-    "[data-cien-type-field], [data-cien-field], [data-cien-value], [data-teaching-origin-value], [data-ext-type-field], [data-ext-field], [data-ext-value], [data-prof-type-field], [data-prof-field], [data-prof-value], [data-otros-type-field], [data-otros-field], [data-otros-value], #otros-total-interno"
+    "[data-cien-type-field], [data-cien-field], [data-teaching-origin-value], [data-ext-type-field], [data-ext-field], [data-ext-value], [data-prof-type-field], [data-prof-field], [data-prof-value], [data-otros-type-field], [data-otros-field], [data-otros-value], #otros-total-interno"
   );
   const rounded = editableNumber(event.target.value, usesTwoDecimals ? 2 : 3);
   if (event.target.value === rounded) return;
