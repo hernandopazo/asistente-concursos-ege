@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 24;
+const DATA_VERSION = 25;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -81,6 +81,7 @@ const initialState = {
   administrativeDetails: "",
   contestStartDate: "",
   contestEndDate: "",
+  evaluatorLocks: {},
   scoreConfigurationLocks: {
     puntajes: true,
     oposicion: true,
@@ -517,6 +518,8 @@ function normalizeSingleScorePublicationGroups(scientificModule) {
   });
 }
 
+window.normalizeSingleScorePublicationGroups = normalizeSingleScorePublicationGroups;
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return seedEvaluations(clone(initialState));
@@ -685,6 +688,7 @@ function migrateState(savedState) {
   savedState.administrativeDetails ||= "";
   savedState.contestStartDate ||= "";
   savedState.contestEndDate ||= "";
+  savedState.evaluatorLocks ||= {};
   savedState.antecedentesDocentes ||= clone(initialState.antecedentesDocentes);
   savedState.antecedentesDocentes.modalidad ||= "unica";
   savedState.antecedentesDocentes.participacion ||= {};
@@ -728,6 +732,7 @@ function migrateState(savedState) {
   savedState.oposicion.evaluadores.forEach((evaluador, index) => {
     evaluador.color ||= evaluatorColors[index % evaluatorColors.length];
     evaluador.nombre = String(evaluador.nombre || "").trim() || `Evaluador ${index + 1}`;
+    savedState.evaluatorLocks[evaluador.id] = Boolean(savedState.evaluatorLocks[evaluador.id]);
   });
   delete savedState.postulantesSort;
   return savedState;
@@ -998,6 +1003,20 @@ function evaluatorStyle(evaluatorId) {
   const color = evaluatorColor(evaluatorId);
   return `--evaluator-color:${color};--evaluator-tint:${hexToRgba(color, 0.16)};--evaluator-tint-strong:${hexToRgba(color, 0.28)}`;
 }
+
+function isEvaluatorLocked(evaluatorId) {
+  return Boolean(state.evaluatorLocks?.[evaluatorId]);
+}
+
+function setEvaluatorLocked(evaluatorId, locked) {
+  state.evaluatorLocks ||= {};
+  state.evaluatorLocks[evaluatorId] = Boolean(locked);
+  saveState();
+  window.collaboration?.applyPermissions?.();
+}
+
+window.isEvaluatorLocked = isEvaluatorLocked;
+window.setEvaluatorLocked = setEvaluatorLocked;
 
 function escapeAttribute(value) {
   return String(value ?? "")
@@ -4549,6 +4568,140 @@ function exportWorkbook(rows, sheetName, filename, columnWidths) {
   XLSX.writeFile(workbook, `${filename}-${fileTimestamp()}.xlsx`, { bookType: "xlsx" });
 }
 
+
+function exportContextLabel(activeId) {
+  if (activeId === "consolidada") return "Carga consolidada";
+  return state.oposicion.evaluadores.find((evaluador) => evaluador.id === activeId)?.nombre || activeId || "Carga";
+}
+
+function exportHeaderRows(title, activeId = "") {
+  return [
+    ["Concurso JTP"],
+    [state.administrativeDetails || ""],
+    ["Fecha de inicio", state.contestStartDate || ""],
+    ["Fecha de finalización", state.contestEndDate || ""],
+    [title],
+    activeId ? ["Vista exportada", exportContextLabel(activeId)] : [],
+    []
+  ].filter((row) => row.length);
+}
+
+function candidateColumns() {
+  return state.postulantes.map(candidatePlainName);
+}
+
+function valueFromCargas(cargas, postulanteId, fieldId) {
+  const value = cargas?.[postulanteId]?.valores?.[fieldId];
+  return value === undefined || value === null ? "" : value;
+}
+
+function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {}) {
+  const module = state[moduleKey];
+  const cargas = antecedentCargas(module, activeId);
+  const rows = [
+    ...exportHeaderRows(title, activeId),
+    ["Ítem", ...candidateColumns()]
+  ];
+
+  module.tipos.forEach((tipo) => {
+    rows.push([tipo.nombre]);
+    if (options.kind === "docentes") {
+      tipo.subitems.forEach((subitem) => {
+        if (TEACHING_ORIGIN_ITEM_IDS.has(subitem.id)) {
+          TEACHING_APPOINTMENT_ORIGINS.forEach((origin) => {
+            const fieldId = teachingOriginFieldId(subitem.id, origin.id);
+            rows.push([
+              `${subitem.nombre} · ${origin.nombre}`,
+              ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, fieldId))
+            ]);
+          });
+          return;
+        }
+        rows.push([
+          subitem.nombre,
+          ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, subitem.id))
+        ]);
+      });
+      rows.push([`Subtotal ${tipo.nombre}`, ...state.postulantes.map((postulante) => docentesTipoScore(tipo, postulante.id, cargas))]);
+      rows.push([]);
+      return;
+    }
+
+    if (options.kind === "cientificos" && tipo.id === "publicaciones") {
+      scientificPublicationGroups(tipo).forEach((group) => {
+        group.subitems.forEach((subitem) => {
+          const label = scientificPublicationGroupIsSingleScore(group) ? group.nombre : `${group.nombre} · ${subitem.posicionNombre}`;
+          rows.push([
+            label,
+            ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, subitem.id))
+          ]);
+        });
+      });
+    } else {
+      tipo.subitems.forEach((subitem) => {
+        rows.push([
+          subitem.nombre,
+          ...state.postulantes.map((postulante) => valueFromCargas(cargas, postulante.id, subitem.id))
+        ]);
+      });
+    }
+
+    const scoreFn = {
+      antecedentesCientificos: cientificosTipoScore,
+      antecedentesExtension: extensionTipoScore,
+      antecedentesProfesionales: profesionalesTipoScore,
+      otrosAntecedentes: otrosTipoScore
+    }[moduleKey];
+    if (scoreFn) rows.push([`Subtotal ${tipo.nombre}`, ...state.postulantes.map((postulante) => scoreFn(tipo, postulante.id, cargas))]);
+    rows.push([]);
+  });
+
+  if (options.kind === "docentes") {
+    rows.push(["Total interno", ...state.postulantes.map((postulante) => docentesInternalScore(postulante.id, cargas))]);
+    rows.push(["Total Simple", ...state.postulantes.map((postulante) => postulante.simple ? docentesRelativizedValue(docentesInternalScore(postulante.id, cargas), getDocentesMaxSimple()) : "")]);
+    rows.push(["Total Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? docentesRelativizedValue(docentesInternalScore(postulante.id, cargas), getDocentesMaxExclusiva()) : "")]);
+  } else if (moduleKey === "antecedentesCientificos") {
+    rows.push(["Total interno", ...state.postulantes.map((postulante) => cientificosInternalScore(postulante.id, cargas))]);
+    rows.push(["Total Simple", ...state.postulantes.map((postulante) => postulante.simple ? cientificosRelativizedValue(cientificosInternalScore(postulante.id, cargas), getCientificosMaxSimple()) : "")]);
+    rows.push(["Total Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? cientificosRelativizedValue(cientificosInternalScore(postulante.id, cargas), getCientificosMaxExclusiva()) : "")]);
+  } else if (moduleKey === "antecedentesExtension") {
+    rows.push(["Total interno", ...state.postulantes.map((postulante) => extensionInternalScore(postulante.id, cargas))]);
+    rows.push(["Total Simple", ...state.postulantes.map((postulante) => postulante.simple ? extensionRelativizedValue(extensionInternalScore(postulante.id, cargas), getExtensionMaxSimple()) : "")]);
+    rows.push(["Total Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? extensionRelativizedValue(extensionInternalScore(postulante.id, cargas), getExtensionMaxExclusiva()) : "")]);
+  } else if (moduleKey === "antecedentesProfesionales") {
+    rows.push(["Total interno", ...state.postulantes.map((postulante) => profesionalesInternalScore(postulante.id, cargas))]);
+    rows.push(["Total Simple", ...state.postulantes.map((postulante) => postulante.simple ? profesionalesRelativizedValue(profesionalesInternalScore(postulante.id, cargas), getProfesionalesMaxSimple()) : "")]);
+    rows.push(["Total Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? profesionalesRelativizedValue(profesionalesInternalScore(postulante.id, cargas), getProfesionalesMaxExclusiva()) : "")]);
+  } else if (moduleKey === "otrosAntecedentes") {
+    rows.push(["Total interno", ...state.postulantes.map((postulante) => otrosInternalScore(postulante.id, cargas))]);
+    rows.push(["Total Simple", ...state.postulantes.map((postulante) => postulante.simple ? otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxSimple()) : "")]);
+    rows.push(["Total Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? otrosRelativizedValue(otrosInternalScore(postulante.id, cargas), getOtrosMaxExclusiva()) : "")]);
+  }
+
+  exportWorkbook(rows, title.slice(0, 31), `${filename}-${activeId}`, [42, ...state.postulantes.map(() => 20)]);
+}
+
+function exportOposicionExcel() {
+  const evaluador = state.oposicion.evaluadores.find((item) => item.id === activeEvaluatorId) || state.oposicion.evaluadores[0];
+  if (!evaluador) return;
+  const rows = [
+    ...exportHeaderRows("Oposición", evaluador.id),
+    ["Campo / criterio", ...candidateColumns()],
+    ["Fecha", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.fecha || "")],
+    ["Tema", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.tema || "")],
+    ...state.oposicion.criterios.map((criterio) => [
+      `${criterio.nombre} · Peso ${formatNumber(criterio.peso, 1)}`,
+      ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.notas?.[criterio.id] ?? "")
+    ]),
+    ["Comentarios", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.comentarios || "")],
+    ["Nota Simple", ...state.postulantes.map((postulante) => postulante.simple ? notaEvaluador(evaluador, postulante.id) : "")],
+    ["Nota Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)) : "")],
+    ["Simple promedio", ...state.postulantes.map((postulante) => postulante.simple ? promedioOposicion(postulante.id) : "")],
+    ["Exclusiva promedio", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(promedioOposicion(postulante.id)) : "")]
+  ];
+  exportWorkbook(rows, "Oposición", `oposicion-${evaluador.id}`, [42, ...state.postulantes.map(() => 20)]);
+}
+
 function exportResultsExcel() {
   const cargoLabel = resultsCargo === "simple" ? "JTP Simple" : "JTP Exclusiva";
   const candidates = state.postulantes.filter((postulante) => postulante[resultsCargo]);
@@ -4883,6 +5036,12 @@ document.querySelector("#show-merit-exclusive").addEventListener("click", () => 
   meritCargo = "exclusiva";
   renderMerit();
 });
+document.querySelector("#export-docentes-excel")?.addEventListener("click", () => exportAntecedentExcel("antecedentesDocentes", activeDocentesCargaId, "Antecedentes docentes", "antecedentes-docentes", { kind: "docentes" }));
+document.querySelector("#export-cientificos-excel")?.addEventListener("click", () => exportAntecedentExcel("antecedentesCientificos", activeCientificosCargaId, "Antecedentes científicos", "antecedentes-cientificos", { kind: "cientificos" }));
+document.querySelector("#export-extension-excel")?.addEventListener("click", () => exportAntecedentExcel("antecedentesExtension", activeExtensionCargaId, "Antecedentes de extensión", "antecedentes-extension"));
+document.querySelector("#export-profesionales-excel")?.addEventListener("click", () => exportAntecedentExcel("antecedentesProfesionales", activeProfesionalesCargaId, "Antecedentes profesionales", "antecedentes-profesionales"));
+document.querySelector("#export-otros-excel")?.addEventListener("click", () => exportAntecedentExcel("otrosAntecedentes", activeOtrosCargaId, "Otros antecedentes", "otros-antecedentes"));
+document.querySelector("#export-oposicion-excel")?.addEventListener("click", exportOposicionExcel);
 document.querySelector("#export-results-excel").addEventListener("click", exportResultsExcel);
 document.querySelector("#export-merit-excel").addEventListener("click", exportMeritExcel);
 document.querySelector("#export-data").addEventListener("click", exportData);

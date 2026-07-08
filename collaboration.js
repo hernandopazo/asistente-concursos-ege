@@ -112,6 +112,7 @@
     const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
     return {
       evaluatorKey,
+      locked: Boolean(state.evaluatorLocks?.[evaluatorKey]),
       oppositionEvaluations: clone(evaluador?.evaluaciones || {}),
       modules: Object.fromEntries(moduleKeys.map((key) => [
         key,
@@ -124,6 +125,8 @@
     const evaluatorKey = remoteState?.data?.evaluatorKey;
     if (!evaluatorKey) return;
     const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
+    state.evaluatorLocks ||= {};
+    state.evaluatorLocks[evaluatorKey] = Boolean(remoteState.data.locked);
     if (evaluador) {
       evaluador.evaluaciones = clone(remoteState.data.oppositionEvaluations || {});
     }
@@ -399,6 +402,12 @@
       : session?.user?.email || "";
     document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
     document.querySelector("#manage-access").disabled = !currentCompetition;
+    const lockButton = document.querySelector("#evaluator-lock-toggle");
+    const locked = Boolean(currentMember?.evaluator_key && window.isEvaluatorLocked?.(currentMember.evaluator_key));
+    lockButton.hidden = !currentMember?.evaluator_key;
+    lockButton.textContent = locked ? "Volver a editar mi carga" : "Bloquear mi carga";
+    lockButton.classList.toggle("is-locked", locked);
+    lockButton.setAttribute("aria-pressed", locked ? "true" : "false");
     fillEvaluatorOptions();
   }
 
@@ -693,6 +702,7 @@
     if (!session || !currentCompetition || !currentMember) return;
     const isAdmin = currentMember.role === "admin";
     const evaluatorKey = currentMember.evaluator_key;
+    const ownLoadLocked = Boolean(evaluatorKey && window.isEvaluatorLocked?.(evaluatorKey));
 
     const adminSelectors = [
       "#postulantes input",
@@ -718,15 +728,18 @@
       setDisabled(`${selector} [data-score-lock]`, !isAdmin);
     });
 
+    const oppositionOwnLocked = ownLoadLocked && activeEvaluatorId === evaluatorKey;
     setDisabled(
       "#evaluadores-list input, #evaluadores-list textarea",
-      !isAdmin && activeEvaluatorId !== evaluatorKey
+      (!isAdmin && activeEvaluatorId !== evaluatorKey) || oppositionOwnLocked
     );
-    setDisabled("#docentes-matrix input", activeDocentesCargaId !== evaluatorKey && !isAdmin);
-    setDisabled("#cientificos-matrix input", activeCientificosCargaId !== evaluatorKey && !isAdmin);
-    setDisabled("#extension-matrix input", activeExtensionCargaId !== evaluatorKey && !isAdmin);
-    setDisabled("#profesionales-matrix input", activeProfesionalesCargaId !== evaluatorKey && !isAdmin);
-    setDisabled("#otros-matrix input", activeOtrosCargaId !== evaluatorKey && !isAdmin);
+    setDisabled("#docentes-matrix input", (activeDocentesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeDocentesCargaId === evaluatorKey));
+    setDisabled("#cientificos-matrix input", (activeCientificosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeCientificosCargaId === evaluatorKey));
+    setDisabled("#extension-matrix input", (activeExtensionCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeExtensionCargaId === evaluatorKey));
+    setDisabled("#profesionales-matrix input", (activeProfesionalesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeProfesionalesCargaId === evaluatorKey));
+    setDisabled("#otros-matrix input", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
+    setDisabled("#teaching-origin-editor input", ownLoadLocked && activeDocentesCargaId === evaluatorKey);
+    setDisabled("#publication-editor input", ownLoadLocked && activeCientificosCargaId === evaluatorKey);
 
     setDisabled(
       "#docentes-evaluation-controls input, #cientificos-evaluation-controls input, "

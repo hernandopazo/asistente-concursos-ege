@@ -1962,3 +1962,17 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
     max-width: 180px;
   }
 }
+
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+#evaluator-lock-toggle.is-locked {
+  border-color: #b42318;
+  background: #fff1f0;
+  color: #9f241b;
+}
