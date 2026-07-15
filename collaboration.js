@@ -272,6 +272,16 @@
     );
     if (statesError) throw statesError;
 
+    const preserveAdminSelection = currentCompetition?.id === competitionId && currentMember?.role === "admin";
+    const previousSelection = {
+      evaluator: activeEvaluatorId,
+      docentes: activeDocentesCargaId,
+      cientificos: activeCientificosCargaId,
+      extension: activeExtensionCargaId,
+      profesionales: activeProfesionalesCargaId,
+      otros: activeOtrosCargaId
+    };
+
     currentCompetition = competition;
     currentMember = membership.member;
     setSharedCompetitionReady(true);
@@ -279,12 +289,31 @@
     state = seedEvaluations(migrateState(clone(competition.shared_state)));
     normalizeEvaluatorNames(currentMember);
     remoteStates.forEach(mergeEvaluatorState);
-    activeEvaluatorId = currentMember.evaluator_key || state.oposicion.evaluadores[0]?.id || null;
-    activeDocentesCargaId = currentMember.evaluator_key || "consolidada";
-    activeCientificosCargaId = currentMember.evaluator_key || "consolidada";
-    activeExtensionCargaId = currentMember.evaluator_key || "consolidada";
-    activeProfesionalesCargaId = currentMember.evaluator_key || "consolidada";
-    activeOtrosCargaId = currentMember.evaluator_key || "consolidada";
+
+    const firstEvaluatorKey = state.oposicion.evaluadores[0]?.id || null;
+    const ownEvaluatorKey = currentMember.evaluator_key || firstEvaluatorKey;
+    const evaluatorExists = (key) => state.oposicion.evaluadores.some((evaluador) => evaluador.id === key);
+    const activeLoadOrFallback = (key) => {
+      if (key === "consolidada") return key;
+      return evaluatorExists(key) ? key : ownEvaluatorKey || "consolidada";
+    };
+
+    if (preserveAdminSelection) {
+      activeEvaluatorId = evaluatorExists(previousSelection.evaluator) ? previousSelection.evaluator : ownEvaluatorKey;
+      activeDocentesCargaId = activeLoadOrFallback(previousSelection.docentes);
+      activeCientificosCargaId = activeLoadOrFallback(previousSelection.cientificos);
+      activeExtensionCargaId = activeLoadOrFallback(previousSelection.extension);
+      activeProfesionalesCargaId = activeLoadOrFallback(previousSelection.profesionales);
+      activeOtrosCargaId = activeLoadOrFallback(previousSelection.otros);
+    } else {
+      activeEvaluatorId = ownEvaluatorKey || null;
+      activeDocentesCargaId = ownEvaluatorKey || "consolidada";
+      activeCientificosCargaId = ownEvaluatorKey || "consolidada";
+      activeExtensionCargaId = ownEvaluatorKey || "consolidada";
+      activeProfesionalesCargaId = ownEvaluatorKey || "consolidada";
+      activeOtrosCargaId = ownEvaluatorKey || "consolidada";
+    }
+
     render();
     suppressSave = false;
     updateSessionUi();
