@@ -1223,29 +1223,35 @@ function participatingEvaluators(_module) {
 
 function antecedentDifference(module, postulanteId, fieldId) {
   const entries = participatingEvaluators(module)
-    .map((evaluador) => ({
-      nombre: evaluador.nombre,
-      valor: module.cargasEvaluadores[evaluador.id]?.[postulanteId]?.valores?.[fieldId]
-    }))
-    .filter((entry) => entry.valor !== "" && entry.valor !== undefined && entry.valor !== null);
-  const distinct = new Set(entries.map((entry) => String(roundToThree(entry.valor))));
+    .map((evaluador) => {
+      const value = module.cargasEvaluadores[evaluador.id]?.[postulanteId]?.valores?.[fieldId];
+      const isEmpty = value === "" || value === undefined || value === null;
+      return {
+        nombre: evaluador.nombre,
+        valor: isEmpty ? "" : value,
+        texto: isEmpty ? "sin carga" : formatNumber(value)
+      };
+    });
+  const distinct = new Set(entries.map((entry) => entry.valor === "" ? "" : String(roundToThree(entry.valor))));
   return {
     differs: entries.length > 1 && distinct.size > 1,
     explanation: entries.length
-      ? entries.map((entry) => `${entry.nombre}: ${formatNumber(entry.valor)}`).join("\n")
+      ? entries.map((entry) => `${entry.nombre}: ${entry.texto}`).join("\n")
       : "Ningún evaluador cargó este valor."
   };
 }
 
 function syncConsolidatedAntecedentField(module, postulanteId, fieldId) {
   const values = participatingEvaluators(module)
-    .map((evaluador) => module.cargasEvaluadores[evaluador.id]?.[postulanteId]?.valores?.[fieldId])
-    .filter((value) => value !== "" && value !== undefined && value !== null);
-  if (!values.length) return;
-  const normalized = values.map((value) => String(roundToThree(value)));
-  if (new Set(normalized).size === 1) {
-    module.cargas[postulanteId].valores[fieldId] = values[0];
-  }
+    .map((evaluador) => {
+      const value = module.cargasEvaluadores[evaluador.id]?.[postulanteId]?.valores?.[fieldId];
+      return value === undefined || value === null ? "" : value;
+    });
+  module.cargas[postulanteId] ||= { valores: {} };
+  module.cargas[postulanteId].valores ||= {};
+  const normalized = values.map((value) => value === "" ? "" : String(roundToThree(value)));
+  const agreed = normalized.length > 0 && new Set(normalized).size === 1 && normalized[0] !== "";
+  module.cargas[postulanteId].valores[fieldId] = agreed ? values[0] : "";
 }
 
 function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, rerender) {
@@ -1279,7 +1285,7 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
         ? "Los campos con diferencias entre evaluadores se resaltan. Esta carga es la utilizada en Resultados."
         : activeLoadLocked
           ? "Su carga está bloqueada para evitar cambios accidentales. Puede volver a editarla cuando lo necesite."
-          : "Esta carga es individual y no modifica Resultados hasta ser incorporada en la carga consolidada."}</p>
+          : "Esta carga individual actualiza la consolidada sólo si todos los evaluadores coinciden; si falta una carga o hay diferencia, el campo consolidado queda vacío para revisión."}</p>
     ` : `<p class="evaluation-mode-note">La tabla actual es la carga consolidada utilizada en Resultados.</p>`}
   `;
   updateLoadLockButton(`lock-${prefix}-load`, activeId, canLockActiveLoad, rerender);
