@@ -1374,12 +1374,17 @@ function handleClearAntecedentAnnotations() {
     alert("Sólo el administrador puede limpiar las anotaciones de antecedentes.");
     return;
   }
+  if (!lastJsonBackupAt) {
+    alert("Antes de limpiar anotaciones, exporte un JSON de respaldo desde la sección Respaldo de esta misma pestaña.");
+    return;
+  }
+  const backupTime = lastJsonBackupAt.toLocaleString("es-AR");
   const confirmed = window.confirm(
-    "Está por borrar todas las anotaciones de antecedentes de la carga consolidada y de todos los evaluadores. No se modificarán puntajes, criterios ni valores cargados. ¿Desea continuar?"
+    `Está por borrar todas las anotaciones de antecedentes de la carga consolidada y de todos los evaluadores. No se modificarán puntajes, criterios ni valores cargados. La última exportación JSON de esta sesión fue: ${backupTime}. ¿Desea continuar?`
   );
   if (!confirmed) return;
   const backedUp = window.confirm(
-    "Esta acción no se puede deshacer desde la aplicación. Si no descargó un JSON de respaldo, cancele ahora y exporte una copia antes de limpiar. ¿Confirma que desea borrar las anotaciones?"
+    "Esta acción no se puede deshacer desde la aplicación. Verifique que el archivo JSON se haya descargado correctamente en su computadora antes de continuar. ¿Confirma definitivamente que desea borrar las anotaciones?"
   );
   if (!backedUp) return;
   clearAllAntecedentAnnotations();
@@ -4988,6 +4993,8 @@ function fileTimestamp() {
   ].join("-");
 }
 
+let lastJsonBackupAt = null;
+
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -4996,6 +5003,7 @@ function exportData() {
   link.download = `concurso-jtp-${fileTimestamp()}.json`;
   link.click();
   URL.revokeObjectURL(url);
+  lastJsonBackupAt = new Date();
 }
 
 function exportWorkbook(rows, sheetName, filename, columnWidths) {
