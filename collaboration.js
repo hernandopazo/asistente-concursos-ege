@@ -751,6 +751,7 @@
       "#header-evaluators-list input",
       "#header-evaluators-list button",
       "#add-evaluador",
+      "#clear-antecedent-notes",
     ];
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));
 

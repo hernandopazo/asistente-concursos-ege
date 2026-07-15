@@ -1351,6 +1351,44 @@ function attachAntecedentNotesHandler(container, module, activeId) {
   });
 }
 
+function clearAllAntecedentAnnotations() {
+  [
+    "antecedentesDocentes",
+    "antecedentesCientificos",
+    "antecedentesExtension",
+    "antecedentesProfesionales",
+    "otrosAntecedentes"
+  ].forEach((moduleKey) => {
+    const module = state[moduleKey];
+    if (!module) return;
+    module.anotaciones ||= {};
+    module.anotaciones.consolidada = "";
+    state.oposicion.evaluadores.forEach((evaluador) => {
+      module.anotaciones[evaluador.id] = "";
+    });
+  });
+}
+
+function handleClearAntecedentAnnotations() {
+  if (window.collaboration?.currentRole?.() !== "admin") {
+    alert("Sólo el administrador puede limpiar las anotaciones de antecedentes.");
+    return;
+  }
+  const confirmed = window.confirm(
+    "¿Borrar todas las anotaciones de antecedentes de la carga consolidada y de todos los evaluadores? No se modificarán puntajes, criterios ni valores cargados."
+  );
+  if (!confirmed) return;
+  clearAllAntecedentAnnotations();
+  renderDocentesMatrix();
+  renderCientificosMatrix();
+  renderExtensionMatrix();
+  renderProfesionalesMatrix();
+  renderOtrosMatrix();
+  saveState();
+  alert("Anotaciones de antecedentes borradas. Los puntajes y cargas numéricas no se modificaron.");
+}
+
+
 function teachingOriginFieldId(subitemId, originId) {
   return `${subitemId}__${originId}`;
 }
@@ -5397,6 +5435,7 @@ document.querySelector("#sort-postulantes").addEventListener("click", sortPostul
 document.querySelector("#add-criterio").addEventListener("click", addCriterio);
 document.querySelector("#restore-opposition-defaults").addEventListener("click", restoreOppositionDefaults);
 document.querySelector("#add-evaluador").addEventListener("click", addEvaluador);
+document.querySelector("#clear-antecedent-notes")?.addEventListener("click", handleClearAntecedentAnnotations);
 document.querySelector("#show-criteria").addEventListener("click", () => {
   oppositionView = "criteria";
   renderOppositionView();
