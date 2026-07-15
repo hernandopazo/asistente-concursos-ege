@@ -289,6 +289,7 @@
     state = seedEvaluations(migrateState(clone(competition.shared_state)));
     normalizeEvaluatorNames(currentMember);
     remoteStates.forEach(mergeEvaluatorState);
+    window.syncAllConsolidatedAntecedents?.();
 
     const firstEvaluatorKey = state.oposicion.evaluadores[0]?.id || null;
     const ownEvaluatorKey = currentMember.evaluator_key || firstEvaluatorKey;

@@ -1254,6 +1254,30 @@ function syncConsolidatedAntecedentField(module, postulanteId, fieldId) {
   module.cargas[postulanteId].valores[fieldId] = agreed ? values[0] : "";
 }
 
+function syncAllConsolidatedAntecedents() {
+  [
+    state.antecedentesDocentes,
+    state.antecedentesCientificos,
+    state.antecedentesExtension,
+    state.antecedentesProfesionales,
+    state.otrosAntecedentes
+  ].forEach((module) => {
+    if (module.modalidad !== "evaluadores") return;
+    state.postulantes.forEach((postulante) => {
+      module.cargas[postulante.id] ||= { valores: {} };
+      module.cargas[postulante.id].valores ||= {};
+      const fieldIds = new Set(Object.keys(module.cargas[postulante.id].valores || {}));
+      participatingEvaluators(module).forEach((evaluador) => {
+        const values = module.cargasEvaluadores[evaluador.id]?.[postulante.id]?.valores || {};
+        Object.keys(values).forEach((fieldId) => fieldIds.add(fieldId));
+      });
+      fieldIds.forEach((fieldId) => syncConsolidatedAntecedentField(module, postulante.id, fieldId));
+    });
+  });
+}
+
+window.syncAllConsolidatedAntecedents = syncAllConsolidatedAntecedents;
+
 function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, rerender) {
   const module = state[moduleKey];
   const prefix = {
