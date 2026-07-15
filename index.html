@@ -172,10 +172,21 @@
             <div class="header-actions">
               <button id="export-data" class="secondary-button" type="button">Exportar JSON</button>
               <label class="secondary-button file-button">
-                Importar JSON
+                Importar JSON completo
                 <input id="import-data" type="file" accept="application/json" />
               </label>
             </div>
+            <div class="individual-import-controls">
+              <label for="individual-import-evaluator">
+                Incorporar carga individual en
+                <select id="individual-import-evaluator"></select>
+              </label>
+              <label class="secondary-button file-button">
+                Importar JSON de un evaluador
+                <input id="import-individual-data" type="file" accept="application/json" />
+              </label>
+            </div>
+            <p id="individual-import-status" class="inline-status" aria-live="polite"></p>
           </section>
         </div>
 

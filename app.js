@@ -490,6 +490,14 @@ function attachAntecedentDetailsState(container, sectionKey) {
     });
   });
 }
+const INDIVIDUAL_IMPORT_MODULES = [
+  "antecedentesDocentes",
+  "antecedentesCientificos",
+  "antecedentesExtension",
+  "antecedentesProfesionales",
+  "otrosAntecedentes"
+];
+
 let resultsCargo = "simple";
 let meritCargo = "simple";
 let localSaveTimer = null;
@@ -2078,6 +2086,7 @@ function promedioOposicionExplanation(postulanteId) {
 function render() {
   renumberPostulantes();
   seedEvaluations(state);
+  renderIndividualImportEvaluatorOptions();
   const administrativeDetails = document.querySelector("#administrative-details");
   if (administrativeDetails.value !== (state.administrativeDetails || "")) {
     administrativeDetails.value = state.administrativeDetails || "";
@@ -5235,6 +5244,137 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+function renderIndividualImportEvaluatorOptions() {
+  const select = document.querySelector("#individual-import-evaluator");
+  if (!select) return;
+  const selected = select.value || window.collaboration?.currentEvaluatorKey?.() || state.oposicion.evaluadores[0]?.id || "";
+  select.innerHTML = state.oposicion.evaluadores.map((evaluador) => {
+    return `<option value="${escapeAttribute(evaluador.id)}">${escapeHtml(evaluador.nombre)}</option>`;
+  }).join("");
+  if (state.oposicion.evaluadores.some((evaluador) => evaluador.id === selected)) {
+    select.value = selected;
+  }
+}
+
+function normalizedName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function candidateIdMapFromSource(sourceState) {
+  const byId = new Map(state.postulantes.map((postulante) => [postulante.id, postulante.id]));
+  const byName = new Map(state.postulantes.map((postulante) => [
+    `${normalizedName(postulante.apellidos)}|${normalizedName(postulante.nombres)}`,
+    postulante.id
+  ]));
+  const map = new Map();
+  (sourceState.postulantes || []).forEach((sourcePostulante) => {
+    const direct = byId.get(sourcePostulante.id);
+    const byFullName = byName.get(`${normalizedName(sourcePostulante.apellidos)}|${normalizedName(sourcePostulante.nombres)}`);
+    if (direct || byFullName) map.set(sourcePostulante.id, direct || byFullName);
+  });
+  return map;
+}
+
+function remapCandidateLoads(loads, candidateMap) {
+  const remapped = {};
+  Object.entries(loads || {}).forEach(([sourcePostulanteId, carga]) => {
+    const targetPostulanteId = candidateMap.get(sourcePostulanteId);
+    if (!targetPostulanteId) return;
+    remapped[targetPostulanteId] = clone(carga);
+  });
+  return remapped;
+}
+
+function remapOppositionEvaluations(evaluations, candidateMap) {
+  const remapped = {};
+  Object.entries(evaluations || {}).forEach(([sourcePostulanteId, evaluacion]) => {
+    const targetPostulanteId = candidateMap.get(sourcePostulanteId);
+    if (!targetPostulanteId) return;
+    remapped[targetPostulanteId] = clone(evaluacion);
+  });
+  return remapped;
+}
+
+function sourceEvaluatorForIndividualImport(sourceState, targetEvaluatorId) {
+  const targetEvaluator = state.oposicion.evaluadores.find((evaluador) => evaluador.id === targetEvaluatorId);
+  const sourceEvaluators = sourceState.oposicion?.evaluadores || [];
+  return sourceEvaluators.find((evaluador) => evaluador.id === targetEvaluatorId)
+    || sourceEvaluators.find((evaluador) => normalizedName(evaluador.nombre) === normalizedName(targetEvaluator?.nombre))
+    || null;
+}
+
+function importIndividualData(file, targetEvaluatorId) {
+  if (window.collaboration?.currentRole?.() !== "admin") {
+    alert("Sólo el administrador puede importar cargas individuales desde JSON.");
+    return;
+  }
+  const targetEvaluator = state.oposicion.evaluadores.find((evaluador) => evaluador.id === targetEvaluatorId);
+  if (!targetEvaluator) {
+    alert("Seleccione el evaluador en el que desea incorporar la carga.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      const sourceState = seedEvaluations(migrateState(JSON.parse(reader.result)));
+      const sourceEvaluator = sourceEvaluatorForIndividualImport(sourceState, targetEvaluatorId);
+      if (!sourceEvaluator) {
+        throw new Error("No encontré en el JSON una carga correspondiente a ese evaluador.");
+      }
+      const candidateMap = candidateIdMapFromSource(sourceState);
+      if (!candidateMap.size) {
+        throw new Error("No pude asociar los postulantes del JSON con los postulantes del concurso actual.");
+      }
+      if (candidateMap.size < state.postulantes.length) {
+        const partialConfirmed = window.confirm(
+          `El JSON sólo pudo asociar ${candidateMap.size} de ${state.postulantes.length} postulantes actuales. Los postulantes no asociados quedarán sin carga para este evaluador. ¿Continuar de todos modos?`
+        );
+        if (!partialConfirmed) return;
+      }
+      const confirmed = window.confirm(
+        `Se importará sólo la carga individual de "${sourceEvaluator.nombre}" sobre "${targetEvaluator.nombre}". No se modificarán la carga consolidada, los puntajes, los criterios ni las cargas de otros evaluadores. ¿Continuar?`
+      );
+      if (!confirmed) return;
+
+      targetEvaluator.evaluaciones = remapOppositionEvaluations(sourceEvaluator.evaluaciones, candidateMap);
+      targetEvaluator.anotaciones = sourceEvaluator.anotaciones || "";
+      INDIVIDUAL_IMPORT_MODULES.forEach((moduleKey) => {
+        const sourceModule = sourceState[moduleKey];
+        const targetModule = state[moduleKey];
+        if (!sourceModule || !targetModule) return;
+        targetModule.cargasEvaluadores ||= {};
+        targetModule.anotaciones ||= {};
+        targetModule.cargasEvaluadores[targetEvaluatorId] = remapCandidateLoads(sourceModule.cargasEvaluadores?.[sourceEvaluator.id], candidateMap);
+        targetModule.anotaciones[targetEvaluatorId] = sourceModule.anotaciones?.[sourceEvaluator.id] || "";
+      });
+
+      seedEvaluations(state);
+      render();
+      saveState();
+      const status = document.querySelector("#individual-import-status");
+      if (status) {
+        status.textContent = `Carga individual importada en ${targetEvaluator.nombre}.`;
+        status.classList.remove("error");
+      }
+    } catch (error) {
+      const message = error.message || "No se pudo importar la carga individual.";
+      const status = document.querySelector("#individual-import-status");
+      if (status) {
+        status.textContent = message;
+        status.classList.add("error");
+      }
+      alert(message);
+    }
+  });
+  reader.readAsText(file);
+}
+
+
 function normalizeHeader(value) {
   return String(value || "")
     .normalize("NFD")
@@ -5528,6 +5668,15 @@ document.querySelector("#export-merit-excel").addEventListener("click", exportMe
 document.querySelector("#export-data").addEventListener("click", exportData);
 document.querySelector("#import-data").addEventListener("change", (event) => {
   if (event.target.files[0]) importData(event.target.files[0]);
+  event.target.value = "";
+});
+document.querySelector("#import-individual-data")?.addEventListener("change", (event) => {
+  if (event.target.files[0]) importIndividualData(event.target.files[0], document.querySelector("#individual-import-evaluator")?.value);
+  event.target.value = "";
+});
+document.querySelector("#individual-import-evaluator")?.addEventListener("change", () => {
+  const status = document.querySelector("#individual-import-status");
+  if (status) status.textContent = "";
 });
 document.querySelector("#import-postulantes").addEventListener("change", (event) => {
   if (event.target.files[0]) importPostulantesFile(event.target.files[0]);

@@ -190,6 +190,34 @@ body.auth-locked {
   margin-top: 0;
 }
 
+.individual-import-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.individual-import-controls label:not(.file-button) {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inline-status {
+  min-height: 18px;
+  margin: 8px 0 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inline-status.error {
+  color: var(--danger);
+}
+
 .fixed-competition-name {
   display: block;
   padding: 14px 16px;
