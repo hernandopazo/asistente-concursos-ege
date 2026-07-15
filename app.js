@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 32;
+const DATA_VERSION = 33;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -101,12 +101,12 @@ const initialState = {
     { id: "oposicion", nombre: "Pruebas de oposición", simpleMin: 25, simpleMax: 50, simple: 27, exclusivaMin: 20, exclusivaMax: 40, exclusiva: 25 }
   ],
   postulantes: [
-    { id: "postulante_1", numero: 1, apellidos: "Apellido 1", nombres: "Nombre 1", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false },
-    { id: "postulante_2", numero: 2, apellidos: "Apellido 2", nombres: "Nombre 2", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false },
-    { id: "postulante_3", numero: 3, apellidos: "Apellido 3", nombres: "Nombre 3", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false },
-    { id: "postulante_4", numero: 4, apellidos: "Apellido 4", nombres: "Nombre 4", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false },
-    { id: "postulante_5", numero: 5, apellidos: "Apellido 5", nombres: "Nombre 5", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false },
-    { id: "postulante_6", numero: 6, apellidos: "Apellido 6", nombres: "Nombre 6", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false }
+    { id: "postulante_1", numero: 1, apellidos: "Apellido 1", nombres: "Nombre 1", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
+    { id: "postulante_2", numero: 2, apellidos: "Apellido 2", nombres: "Nombre 2", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
+    { id: "postulante_3", numero: 3, apellidos: "Apellido 3", nombres: "Nombre 3", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
+    { id: "postulante_4", numero: 4, apellidos: "Apellido 4", nombres: "Nombre 4", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
+    { id: "postulante_5", numero: 5, apellidos: "Apellido 5", nombres: "Nombre 5", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
+    { id: "postulante_6", numero: 6, apellidos: "Apellido 6", nombres: "Nombre 6", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false }
   ],
   oposicion: {
     criterios: [
@@ -721,6 +721,11 @@ function migrateState(savedState) {
       postulante.licencia = Boolean(postulante.licencia);
     });
   }
+  if ((savedState.dataVersion || 1) < 33) {
+    savedState.postulantes.forEach((postulante) => {
+      postulante.opoVirtual = Boolean(postulante.opoVirtual);
+    });
+  }
   if ((savedState.dataVersion || 1) < 24) {
     normalizeSingleScorePublicationGroups(savedState.antecedentesCientificos);
   }
@@ -788,6 +793,7 @@ function migrateState(savedState) {
     postulante.dege = Boolean(postulante.dege);
     postulante.otroDepto = Boolean(postulante.otroDepto);
     postulante.licencia = Boolean(postulante.licencia);
+    postulante.opoVirtual = Boolean(postulante.opoVirtual);
   });
   const evaluatorColors = ["#d8a21b", "#2d7fb8", "#5b9b52", "#a05ca5", "#c65c46", "#3c9687"];
   savedState.oposicion.evaluadores.forEach((evaluador, index) => {
@@ -2237,7 +2243,8 @@ function renderPostulantes() {
     exclusiva: state.postulantes.filter((postulante) => postulante.exclusiva).length,
     dege: state.postulantes.filter((postulante) => postulante.dege).length,
     otroDepto: state.postulantes.filter((postulante) => postulante.otroDepto).length,
-    licencia: state.postulantes.filter((postulante) => postulante.licencia).length
+    licencia: state.postulantes.filter((postulante) => postulante.licencia).length,
+    opoVirtual: state.postulantes.filter((postulante) => postulante.opoVirtual).length
   };
   summary.innerHTML = `
     <span>Total (${counts.total})</span>
@@ -2246,6 +2253,7 @@ function renderPostulantes() {
     <span>DEGE (${counts.dege})</span>
     <span>Otros Deptos. (${counts.otroDepto})</span>
     <span>Covid/Licencias (${counts.licencia})</span>
+    <span>Opo virtual (${counts.opoVirtual})</span>
   `;
   tbody.innerHTML = "";
   state.postulantes.forEach((postulante, index) => {
@@ -2260,6 +2268,7 @@ function renderPostulantes() {
       <td><input type="checkbox" ${postulante.dege ? "checked" : ""} data-postulante="${index}" data-field="dege" aria-label="${postulante.apellidos || "Postulante"} pertenece al DEGE"></td>
       <td><input type="checkbox" ${postulante.otroDepto ? "checked" : ""} data-postulante="${index}" data-field="otroDepto" aria-label="${postulante.apellidos || "Postulante"} pertenece a otro departamento"></td>
       <td><input type="checkbox" ${postulante.licencia ? "checked" : ""} data-postulante="${index}" data-field="licencia" aria-label="${postulante.apellidos || "Postulante"} tuvo Covid o licencia"></td>
+      <td><input type="checkbox" ${postulante.opoVirtual ? "checked" : ""} data-postulante="${index}" data-field="opoVirtual" aria-label="${postulante.apellidos || "Postulante"} realizará oposición virtual"></td>
       <td><button class="icon-button" type="button" data-remove-postulante="${index}" title="Quitar postulante">×</button></td>
     `;
     tbody.appendChild(row);
@@ -4954,7 +4963,8 @@ function addPostulante() {
     exclusiva: false,
     dege: false,
     otroDepto: false,
-    licencia: false
+    licencia: false,
+    opoVirtual: false
   };
   state.postulantes.unshift(postulante);
   render();
@@ -5425,6 +5435,7 @@ function rowsToPostulantes(rows) {
   const degeColumn = findColumn(headers, ["DEGE", "Personal DEGE"]);
   const otroDeptoColumn = findColumn(headers, ["Otro Depto", "Otro Departamento"]);
   const licenciaColumn = findColumn(headers, ["Licencia", "Licencias", "Covid", "Covid/Licencias", "Covid-Licencias"]);
+  const opoVirtualColumn = findColumn(headers, ["Opo virtual", "Oposicion virtual", "Oposición virtual", "Virtual", "Opo no presencial", "Oposición no presencial"]);
   const cargoColumn = findColumn(headers, ["Tipo de cargo", "Cargo", "Cargos"]);
 
   if (surnameColumn < 0 || nameColumn < 0) {
@@ -5447,7 +5458,8 @@ function rowsToPostulantes(rows) {
         exclusiva: exclusivaColumn >= 0 ? parseParticipation(row[exclusivaColumn]) : cargo.exclusiva,
         dege: degeColumn >= 0 ? parseParticipation(row[degeColumn]) : false,
         otroDepto: otroDeptoColumn >= 0 ? parseParticipation(row[otroDeptoColumn]) : false,
-        licencia: licenciaColumn >= 0 ? parseParticipation(row[licenciaColumn]) : false
+        licencia: licenciaColumn >= 0 ? parseParticipation(row[licenciaColumn]) : false,
+        opoVirtual: opoVirtualColumn >= 0 ? parseParticipation(row[opoVirtualColumn]) : false
       };
     });
 }
