@@ -218,6 +218,16 @@ body.auth-locked {
   color: var(--danger);
 }
 
+.backup-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 4px solid var(--accent);
+  background: #eef5f8;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .fixed-competition-name {
   display: block;
   padding: 14px 16px;
