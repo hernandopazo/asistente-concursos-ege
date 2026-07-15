@@ -1375,9 +1375,13 @@ function handleClearAntecedentAnnotations() {
     return;
   }
   const confirmed = window.confirm(
-    "¿Borrar todas las anotaciones de antecedentes de la carga consolidada y de todos los evaluadores? No se modificarán puntajes, criterios ni valores cargados."
+    "Está por borrar todas las anotaciones de antecedentes de la carga consolidada y de todos los evaluadores. No se modificarán puntajes, criterios ni valores cargados. ¿Desea continuar?"
   );
   if (!confirmed) return;
+  const backedUp = window.confirm(
+    "Esta acción no se puede deshacer desde la aplicación. Si no descargó un JSON de respaldo, cancele ahora y exporte una copia antes de limpiar. ¿Confirma que desea borrar las anotaciones?"
+  );
+  if (!backedUp) return;
   clearAllAntecedentAnnotations();
   renderDocentesMatrix();
   renderCientificosMatrix();

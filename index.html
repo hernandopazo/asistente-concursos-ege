@@ -175,7 +175,6 @@
                 Importar JSON
                 <input id="import-data" type="file" accept="application/json" />
               </label>
-              <button id="clear-antecedent-notes" class="secondary-button" type="button">Limpiar anotaciones de antecedentes</button>
             </div>
           </section>
         </div>
@@ -231,6 +230,16 @@
             <li>El administrador principal puede revocar accesos ya admitidos o cancelar autorizaciones pendientes sin borrar las cargas históricas.</li>
             <li>Los cambios se guardan en Supabase y también queda una copia local en el navegador. Antes de salir se ofrece descargar un JSON de respaldo.</li>
           </ol>
+        </section>
+
+        <section class="setup-section danger-zone">
+          <div class="setup-section-heading">
+            <div>
+              <h3>Zona de limpieza</h3>
+              <p>Use esta acción sólo después de exportar un JSON de respaldo. Borra anotaciones de antecedentes y no se puede deshacer desde la aplicación.</p>
+            </div>
+          </div>
+          <button id="clear-antecedent-notes" class="secondary-button danger-button" type="button">Limpiar anotaciones de antecedentes</button>
         </section>
       </section>
 

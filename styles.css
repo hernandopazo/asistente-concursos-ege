@@ -398,6 +398,17 @@ body.auth-locked {
   margin-top: 16px;
 }
 
+.danger-zone {
+  margin-top: 16px;
+  border-color: #d58d86;
+  background: var(--danger-bg);
+}
+
+.danger-zone .setup-section-heading p {
+  color: var(--danger);
+}
+
+
 .setup-summary ol {
   display: grid;
   gap: 9px;
