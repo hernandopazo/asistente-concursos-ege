@@ -787,7 +787,8 @@
       setDisabled(`${selector} input, ${selector} select, ${selector} textarea, ${selector} button:not([data-score-lock])`, !isAdmin || locked);
       setDisabled(`${selector} [data-score-lock]`, !isAdmin);
     });
-    setDisabled("#postulantes [data-abstencion-oposicion]", false);
+    const postulantesLocked = window.isScoreConfigurationLocked?.("postulantes") !== false;
+    setDisabled("#postulantes [data-abstencion-oposicion]", postulantesLocked);
 
     const oppositionOwnLocked = ownLoadLocked && activeEvaluatorId === evaluatorKey;
     setDisabled(
