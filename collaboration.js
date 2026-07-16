@@ -111,6 +111,13 @@
     return shared;
   }
 
+  function evaluatorOppositionAbstentions(evaluatorKey) {
+    return Object.fromEntries(state.postulantes.map((postulante) => [
+      postulante.id,
+      Boolean(postulante.abstencionesOposicion?.[evaluatorKey])
+    ]));
+  }
+
   function evaluatorStateSnapshot(evaluatorKey) {
     const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
     return {
@@ -118,6 +125,7 @@
       locked: Boolean(state.evaluatorLocks?.[evaluatorKey]),
       oppositionEvaluations: clone(evaluador?.evaluaciones || {}),
       oppositionAnnotations: evaluador?.anotaciones || "",
+      oppositionAbstentions: evaluatorOppositionAbstentions(evaluatorKey),
       modules: Object.fromEntries(moduleKeys.map((key) => [
         key,
         {
@@ -138,6 +146,13 @@
       evaluador.evaluaciones = clone(remoteState.data.oppositionEvaluations || {});
       evaluador.anotaciones = remoteState.data.oppositionAnnotations || "";
     }
+    Object.entries(remoteState.data.oppositionAbstentions || {}).forEach(([postulanteId, abstained]) => {
+      const postulante = state.postulantes.find((item) => item.id === postulanteId);
+      if (!postulante) return;
+      postulante.abstencionesOposicion ||= {};
+      if (abstained) postulante.abstencionesOposicion[evaluatorKey] = true;
+      else delete postulante.abstencionesOposicion[evaluatorKey];
+    });
     moduleKeys.forEach((key) => {
       const remoteModule = remoteState.data.modules?.[key];
       state[key].cargasEvaluadores[evaluatorKey] = clone(remoteModule?.cargas || remoteModule || {});
@@ -772,6 +787,7 @@
       setDisabled(`${selector} input, ${selector} select, ${selector} textarea, ${selector} button:not([data-score-lock])`, !isAdmin || locked);
       setDisabled(`${selector} [data-score-lock]`, !isAdmin);
     });
+    setDisabled("#postulantes [data-abstencion-oposicion]", false);
 
     const oppositionOwnLocked = ownLoadLocked && activeEvaluatorId === evaluatorKey;
     setDisabled(
