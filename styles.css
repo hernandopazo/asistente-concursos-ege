@@ -1254,6 +1254,40 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
   font-weight: 400;
 }
 
+.abstention-picker {
+  min-width: 190px;
+}
+
+.abstention-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 6px 2px 0;
+  padding: 3px 6px;
+  border: 1px solid var(--evaluator-color);
+  border-radius: 4px;
+  background: var(--evaluator-tint);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.abstention-picker input {
+  margin: 0;
+}
+
+.opposition-matrix .abstention-cell {
+  background: #f7f0de;
+  color: #765a13;
+  font-weight: 800;
+  text-align: center;
+}
+
+.opposition-matrix .abstention-cell strong {
+  color: #765a13;
+}
+
 .scientific-entry-group .opposition-grid {
   min-height: 0;
   max-height: 60vh;

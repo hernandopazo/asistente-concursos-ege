@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 33;
+const DATA_VERSION = 34;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -101,12 +101,12 @@ const initialState = {
     { id: "oposicion", nombre: "Pruebas de oposición", simpleMin: 25, simpleMax: 50, simple: 27, exclusivaMin: 20, exclusivaMax: 40, exclusiva: 25 }
   ],
   postulantes: [
-    { id: "postulante_1", numero: 1, apellidos: "Apellido 1", nombres: "Nombre 1", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
-    { id: "postulante_2", numero: 2, apellidos: "Apellido 2", nombres: "Nombre 2", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
-    { id: "postulante_3", numero: 3, apellidos: "Apellido 3", nombres: "Nombre 3", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
-    { id: "postulante_4", numero: 4, apellidos: "Apellido 4", nombres: "Nombre 4", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
-    { id: "postulante_5", numero: 5, apellidos: "Apellido 5", nombres: "Nombre 5", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false, opoVirtual: false },
-    { id: "postulante_6", numero: 6, apellidos: "Apellido 6", nombres: "Nombre 6", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false }
+    { id: "postulante_1", numero: 1, apellidos: "Apellido 1", nombres: "Nombre 1", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false, abstencionesOposicion: {} },
+    { id: "postulante_2", numero: 2, apellidos: "Apellido 2", nombres: "Nombre 2", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false, abstencionesOposicion: {} },
+    { id: "postulante_3", numero: 3, apellidos: "Apellido 3", nombres: "Nombre 3", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false, opoVirtual: false, abstencionesOposicion: {} },
+    { id: "postulante_4", numero: 4, apellidos: "Apellido 4", nombres: "Nombre 4", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false, abstencionesOposicion: {} },
+    { id: "postulante_5", numero: 5, apellidos: "Apellido 5", nombres: "Nombre 5", simple: true, exclusiva: false, dege: false, otroDepto: false, licencia: false, opoVirtual: false, abstencionesOposicion: {} },
+    { id: "postulante_6", numero: 6, apellidos: "Apellido 6", nombres: "Nombre 6", simple: true, exclusiva: true, dege: false, otroDepto: false, licencia: false, opoVirtual: false, abstencionesOposicion: {} }
   ],
   oposicion: {
     criterios: [
@@ -794,6 +794,7 @@ function migrateState(savedState) {
     postulante.otroDepto = Boolean(postulante.otroDepto);
     postulante.licencia = Boolean(postulante.licencia);
     postulante.opoVirtual = Boolean(postulante.opoVirtual);
+    postulante.abstencionesOposicion ||= {};
   });
   const evaluatorColors = ["#d8a21b", "#2d7fb8", "#5b9b52", "#a05ca5", "#c65c46", "#3c9687"];
   savedState.oposicion.evaluadores.forEach((evaluador, index) => {
@@ -1192,12 +1193,14 @@ function sumaPonderadaEvaluador(evaluador, postulanteId) {
 }
 
 function notaEvaluador(evaluador, postulanteId) {
+  if (evaluadorSeAbstieneOposicion(evaluador.id, postulanteId)) return 0;
   const totalPesos = pesoTotal();
   if (!totalPesos) return 0;
   return sumaPonderadaEvaluador(evaluador, postulanteId) * getOposicionMaxSimple() / (totalPesos * 10);
 }
 
 function notaEvaluadorExplanation(evaluador, postulanteId) {
+  if (evaluadorSeAbstieneOposicion(evaluador.id, postulanteId)) return `${evaluador.nombre}: Abstención.`;
   const evaluacion = evaluador.evaluaciones[postulanteId];
   const lines = state.oposicion.criterios.map((criterio) => {
     const nota = Number(evaluacion?.notas[criterio.id] || 0);
@@ -1215,6 +1218,46 @@ function notaEvaluadorExplanation(evaluador, postulanteId) {
 function notaExclusivaDesdeSimple(notaSimple) {
   const simpleMax = getOposicionMaxSimple();
   return simpleMax ? Number(notaSimple || 0) / simpleMax * getOposicionMaxExclusiva() : 0;
+}
+
+function postulanteById(postulanteId) {
+  return state.postulantes.find((postulante) => postulante.id === postulanteId);
+}
+
+function evaluadorSeAbstieneOposicion(evaluadorId, postulanteId) {
+  return Boolean(postulanteById(postulanteId)?.abstencionesOposicion?.[evaluadorId]);
+}
+
+function evaluadorTieneNotaOposicion(evaluador, postulanteId) {
+  if (evaluadorSeAbstieneOposicion(evaluador.id, postulanteId)) return false;
+  const notas = evaluador.evaluaciones?.[postulanteId]?.notas || {};
+  return state.oposicion.criterios.some((criterio) => notas[criterio.id] !== "" && notas[criterio.id] !== undefined);
+}
+
+function evaluadoresConNotaOposicion(postulanteId) {
+  return state.oposicion.evaluadores.filter((evaluador) => evaluadorTieneNotaOposicion(evaluador, postulanteId));
+}
+
+function clearOposicionEvaluation(evaluador, postulanteId) {
+  const evaluacion = evaluador.evaluaciones?.[postulanteId];
+  if (!evaluacion) return;
+  evaluacion.fecha = "";
+  evaluacion.tema = "";
+  evaluacion.comentarios = "";
+  state.oposicion.criterios.forEach((criterio) => {
+    evaluacion.notas[criterio.id] = "";
+  });
+}
+
+function setAbstencionOposicion(postulante, evaluadorId, abstained) {
+  postulante.abstencionesOposicion ||= {};
+  if (abstained) {
+    postulante.abstencionesOposicion[evaluadorId] = true;
+    const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluadorId);
+    if (evaluador) clearOposicionEvaluation(evaluador, postulante.id);
+  } else {
+    delete postulante.abstencionesOposicion[evaluadorId];
+  }
 }
 
 function getDocentesMaxSimple() {
@@ -2076,17 +2119,23 @@ function otrosRelativizedExplanationFromCargas(postulanteId, agreedMax, cargo, c
 }
 
 function promedioOposicion(postulanteId) {
-  const evaluadores = state.oposicion.evaluadores;
+  const evaluadores = evaluadoresConNotaOposicion(postulanteId);
   if (!evaluadores.length) return 0;
   const total = evaluadores.reduce((sum, evaluador) => sum + notaEvaluador(evaluador, postulanteId), 0);
   return total / evaluadores.length;
 }
 
 function promedioOposicionExplanation(postulanteId) {
+  const evaluadores = evaluadoresConNotaOposicion(postulanteId);
+  if (!evaluadores.length) return "Sin evaluaciones cargadas para este postulante.";
   const lines = state.oposicion.evaluadores.map((evaluador) => {
-    return `${evaluador.nombre}: ${formatNumber(notaEvaluador(evaluador, postulanteId))}`;
+    const value = notaEvaluador(evaluador, postulanteId);
+    const suffix = evaluadorSeAbstieneOposicion(evaluador.id, postulanteId)
+      ? " (abstención)"
+      : evaluadorTieneNotaOposicion(evaluador, postulanteId) ? "" : " (sin evaluación)";
+    return `${evaluador.nombre}: ${formatNumber(value)}${suffix}`;
   });
-  return `${lines.join("\n")}\nSuma ÷ ${state.oposicion.evaluadores.length} evaluadores = ${formatNumber(promedioOposicion(postulanteId))}`;
+  return `${lines.join("\n")}\nSuma de evaluadores con carga ÷ ${evaluadores.length} = ${formatNumber(promedioOposicion(postulanteId))}`;
 }
 
 function render() {
@@ -2244,7 +2293,8 @@ function renderPostulantes() {
     dege: state.postulantes.filter((postulante) => postulante.dege).length,
     otroDepto: state.postulantes.filter((postulante) => postulante.otroDepto).length,
     licencia: state.postulantes.filter((postulante) => postulante.licencia).length,
-    opoVirtual: state.postulantes.filter((postulante) => postulante.opoVirtual).length
+    opoVirtual: state.postulantes.filter((postulante) => postulante.opoVirtual).length,
+    abstenciones: state.postulantes.reduce((total, postulante) => total + Object.keys(postulante.abstencionesOposicion || {}).length, 0)
   };
   summary.innerHTML = `
     <span>Total (${counts.total})</span>
@@ -2254,6 +2304,7 @@ function renderPostulantes() {
     <span>Otros Deptos. (${counts.otroDepto})</span>
     <span>Covid/Licencias (${counts.licencia})</span>
     <span>Opo virtual (${counts.opoVirtual})</span>
+    <span>Abstenciones (${counts.abstenciones})</span>
   `;
   tbody.innerHTML = "";
   state.postulantes.forEach((postulante, index) => {
@@ -2269,6 +2320,12 @@ function renderPostulantes() {
       <td><input type="checkbox" ${postulante.otroDepto ? "checked" : ""} data-postulante="${index}" data-field="otroDepto" aria-label="${postulante.apellidos || "Postulante"} pertenece a otro departamento"></td>
       <td><input type="checkbox" ${postulante.licencia ? "checked" : ""} data-postulante="${index}" data-field="licencia" aria-label="${postulante.apellidos || "Postulante"} tuvo Covid o licencia"></td>
       <td><input type="checkbox" ${postulante.opoVirtual ? "checked" : ""} data-postulante="${index}" data-field="opoVirtual" aria-label="${postulante.apellidos || "Postulante"} realizará oposición virtual"></td>
+      <td class="abstention-picker">${state.oposicion.evaluadores.map((evaluador) => `
+        <label style="${evaluatorStyle(evaluador.id)}">
+          <input type="checkbox" ${postulante.abstencionesOposicion?.[evaluador.id] ? "checked" : ""} data-postulante="${index}" data-abstencion-oposicion="${evaluador.id}" aria-label="${escapeAttribute(evaluador.nombre)} se abstiene para ${escapeAttribute(postulante.apellidos || "Postulante")}">
+          <span>${escapeHtml(evaluador.nombre)}</span>
+        </label>
+      `).join("")}</td>
       <td><button class="icon-button" type="button" data-remove-postulante="${index}" title="Quitar postulante">×</button></td>
     `;
     tbody.appendChild(row);
@@ -2277,8 +2334,11 @@ function renderPostulantes() {
   tbody.querySelectorAll('input[type="text"]').forEach((input) => {
     input.addEventListener("input", updatePostulante);
   });
-  tbody.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+  tbody.querySelectorAll('input[type="checkbox"][data-field]').forEach((input) => {
     input.addEventListener("change", updatePostulante);
+  });
+  tbody.querySelectorAll("[data-abstencion-oposicion]").forEach((input) => {
+    input.addEventListener("change", updateAbstencionOposicion);
   });
   tbody.querySelectorAll("[data-remove-postulante]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2308,6 +2368,14 @@ function updatePostulante(event) {
   if (event.target.type === "checkbox") {
     render();
   }
+}
+
+function updateAbstencionOposicion(event) {
+  const postulante = state.postulantes[Number(event.target.dataset.postulante)];
+  if (!postulante) return;
+  setAbstencionOposicion(postulante, event.target.dataset.abstencionOposicion, event.target.checked);
+  saveState();
+  render();
 }
 
 function renderCriterios() {
@@ -2402,6 +2470,7 @@ function removeEvaluator(evaluatorId) {
   delete state.otrosAntecedentes.participacion[removed.id];
   delete state.otrosAntecedentes.cargasEvaluadores[removed.id];
   delete state.otrosAntecedentes.anotaciones[removed.id];
+  state.postulantes.forEach((postulante) => delete postulante.abstencionesOposicion?.[removed.id]);
   activeEvaluatorId = state.oposicion.evaluadores[0]?.id || null;
   render();
 }
@@ -2454,6 +2523,8 @@ function renderHeaderEvaluators() {
 function renderEvaluadores() {
   const container = document.querySelector("#evaluadores-list");
   const tabs = document.querySelector("#evaluador-tabs");
+  const previousGrid = container.querySelector(".opposition-grid");
+  const previousScroll = previousGrid ? { left: previousGrid.scrollLeft, top: previousGrid.scrollTop } : null;
   container.innerHTML = "";
   tabs.innerHTML = "";
 
@@ -2490,6 +2561,8 @@ function renderEvaluadores() {
     <tr>
       <th class="matrix-label">${label}</th>
       ${state.postulantes.map((postulante) => {
+        const abstained = evaluadorSeAbstieneOposicion(evaluador.id, postulante.id);
+        if (abstained) return `<td class="abstention-cell">Abstención</td>`;
         const evaluacion = evaluador.evaluaciones[postulante.id];
         if (field === "comentarios") {
           return `<td><textarea rows="2" data-meta="${field}" data-eval="${evalIndex}" data-postulante-id="${postulante.id}">${evaluacion[field]}</textarea></td>`;
@@ -2502,17 +2575,24 @@ function renderEvaluadores() {
     <tr>
       <th class="matrix-label criterion-label">${criterio.nombre}<span>Peso ${formatNumber(criterio.peso, 1)}</span></th>
       ${state.postulantes.map((postulante) => {
+        if (evaluadorSeAbstieneOposicion(evaluador.id, postulante.id)) return `<td class="abstention-cell">Abstención</td>`;
         const value = evaluador.evaluaciones[postulante.id].notas[criterio.id] ?? "";
         return `<td class="note-cell"><input type="number" min="1" max="10" step="0.1" value="${value}" data-eval="${evalIndex}" data-postulante-id="${postulante.id}" data-criterio-id="${criterio.id}" aria-label="Nota de 1 a 10 para ${escapeAttribute(criterio.nombre)}, ${escapeAttribute(postulante.apellidos)} ${escapeAttribute(postulante.nombres)}"></td>`;
       }).join("")}
     </tr>
   `).join("");
-  const scoreCells = state.postulantes.map((postulante) => `
-    <td class="score-cell"><strong class="${saturationClass(notaEvaluador(evaluador, postulante.id), getOposicionMaxSimple()).trim()}" data-score-postulante="${postulante.id}" ${calculationAttribute(notaEvaluadorExplanation(evaluador, postulante.id))}>${formatNumber(notaEvaluador(evaluador, postulante.id))}</strong></td>
-  `).join("");
-  const exclusiveScoreCells = state.postulantes.map((postulante) => `
-    <td class="score-cell result-exclusiva"><strong class="${saturationClass(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)), getOposicionMaxExclusiva()).trim()}" data-exclusive-score-postulante="${postulante.id}" ${calculationAttribute(`${formatNumber(notaEvaluador(evaluador, postulante.id))} Simple × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}`)}>${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}</strong></td>
-  `).join("");
+  const scoreCells = state.postulantes.map((postulante) => {
+    if (evaluadorSeAbstieneOposicion(evaluador.id, postulante.id)) {
+      return `<td class="score-cell abstention-cell"><strong data-score-postulante="${postulante.id}" ${calculationAttribute(notaEvaluadorExplanation(evaluador, postulante.id))}>Abstención</strong></td>`;
+    }
+    return `<td class="score-cell"><strong class="${saturationClass(notaEvaluador(evaluador, postulante.id), getOposicionMaxSimple()).trim()}" data-score-postulante="${postulante.id}" ${calculationAttribute(notaEvaluadorExplanation(evaluador, postulante.id))}>${formatNumber(notaEvaluador(evaluador, postulante.id))}</strong></td>`;
+  }).join("");
+  const exclusiveScoreCells = state.postulantes.map((postulante) => {
+    if (evaluadorSeAbstieneOposicion(evaluador.id, postulante.id)) {
+      return `<td class="score-cell result-exclusiva abstention-cell"><strong data-exclusive-score-postulante="${postulante.id}" ${calculationAttribute(notaEvaluadorExplanation(evaluador, postulante.id))}>Abstención</strong></td>`;
+    }
+    return `<td class="score-cell result-exclusiva"><strong class="${saturationClass(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)), getOposicionMaxExclusiva()).trim()}" data-exclusive-score-postulante="${postulante.id}" ${calculationAttribute(`${formatNumber(notaEvaluador(evaluador, postulante.id))} Simple × ${formatNumber(getOposicionMaxExclusiva())} ÷ ${formatNumber(getOposicionMaxSimple())} = ${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}`)}>${formatNumber(notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)))}</strong></td>`;
+  }).join("");
   const simpleAverageCells = state.postulantes.map((postulante) => `
     <td class="score-cell result-simple">
       <strong class="${postulante.simple ? saturationClass(promedioOposicion(postulante.id), getOposicionMaxSimple()).trim() : ""}" data-simple-average-postulante="${postulante.id}" ${calculationAttribute(promedioOposicionExplanation(postulante.id))}>${postulante.simple ? formatNumber(promedioOposicion(postulante.id)) : "—"}</strong>
@@ -2566,6 +2646,14 @@ function renderEvaluadores() {
       </section>
     </section>
   `;
+
+  if (previousScroll) {
+    const currentGrid = container.querySelector(".opposition-grid");
+    if (currentGrid) {
+      currentGrid.scrollLeft = previousScroll.left;
+      currentGrid.scrollTop = previousScroll.top;
+    }
+  }
 
   updateLoadLockButton("lock-oposicion-load", activeEvaluatorId, canLockActiveEvaluator, renderEvaluadores);
   container.querySelector("[data-opposition-annotations]")?.addEventListener("input", (event) => {
@@ -4964,7 +5052,8 @@ function addPostulante() {
     dege: false,
     otroDepto: false,
     licencia: false,
-    opoVirtual: false
+    opoVirtual: false,
+    abstencionesOposicion: {}
   };
   state.postulantes.unshift(postulante);
   render();
@@ -5176,19 +5265,22 @@ function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {
 function exportOposicionExcel() {
   const evaluador = state.oposicion.evaluadores.find((item) => item.id === activeEvaluatorId) || state.oposicion.evaluadores[0];
   if (!evaluador) return;
+  const oppositionExportValue = (postulante, value) => (
+    evaluadorSeAbstieneOposicion(evaluador.id, postulante.id) ? "Abstención" : value
+  );
   const rows = [
     ...exportHeaderRows("Oposición", evaluador.id),
     ["Campo / criterio", ...candidateColumns()],
-    ["Fecha", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.fecha || "")],
-    ["Tema", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.tema || "")],
+    ["Fecha", ...state.postulantes.map((postulante) => oppositionExportValue(postulante, evaluador.evaluaciones[postulante.id]?.fecha || ""))],
+    ["Tema", ...state.postulantes.map((postulante) => oppositionExportValue(postulante, evaluador.evaluaciones[postulante.id]?.tema || ""))],
     ...state.oposicion.criterios.map((criterio) => [
       `${criterio.nombre} · Peso ${formatNumber(criterio.peso, 1)}`,
-      ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.notas?.[criterio.id] ?? "")
+      ...state.postulantes.map((postulante) => oppositionExportValue(postulante, evaluador.evaluaciones[postulante.id]?.notas?.[criterio.id] ?? ""))
     ]),
-    ["Comentarios", ...state.postulantes.map((postulante) => evaluador.evaluaciones[postulante.id]?.comentarios || "")],
+    ["Comentarios", ...state.postulantes.map((postulante) => oppositionExportValue(postulante, evaluador.evaluaciones[postulante.id]?.comentarios || ""))],
     ["Anotaciones", evaluador.anotaciones || ""],
-    ["Nota Simple", ...state.postulantes.map((postulante) => postulante.simple ? notaEvaluador(evaluador, postulante.id) : "")],
-    ["Nota Exclusiva", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)) : "")],
+    ["Nota Simple", ...state.postulantes.map((postulante) => oppositionExportValue(postulante, postulante.simple ? notaEvaluador(evaluador, postulante.id) : ""))],
+    ["Nota Exclusiva", ...state.postulantes.map((postulante) => oppositionExportValue(postulante, postulante.exclusiva ? notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)) : ""))],
     ["Simple promedio", ...state.postulantes.map((postulante) => postulante.simple ? promedioOposicion(postulante.id) : "")],
     ["Exclusiva promedio", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(promedioOposicion(postulante.id)) : "")]
   ];
@@ -5537,17 +5629,13 @@ function hideCalculationTooltip() {
   document.querySelector("#calculation-tooltip").classList.remove("is-visible");
 }
 
-document.addEventListener("mouseover", (event) => {
+document.addEventListener("click", (event) => {
   const target = event.target.closest("[data-calculation]");
-  if (target) showCalculationTooltip(target, event.clientX, event.clientY);
-});
-document.addEventListener("mousemove", (event) => {
-  if (event.target.closest("[data-calculation]")) positionCalculationTooltip(event.clientX, event.clientY);
-});
-document.addEventListener("mouseout", (event) => {
-  if (event.target.closest("[data-calculation]") && !event.relatedTarget?.closest?.("[data-calculation]")) {
+  if (!target) {
     hideCalculationTooltip();
+    return;
   }
+  showCalculationTooltip(target, event.clientX, event.clientY);
 });
 document.addEventListener("focusin", (event) => {
   const target = event.target.closest("[data-calculation]");
