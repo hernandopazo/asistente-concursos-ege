@@ -2310,6 +2310,10 @@ function renderPostulantes() {
   state.postulantes.forEach((postulante, index) => {
     const row = document.createElement("tr");
     row.classList.toggle("has-license", Boolean(postulante.licencia));
+    const abstentionCount = Object.keys(postulante.abstencionesOposicion || {}).length;
+    const abstentionLabel = abstentionCount
+      ? `${abstentionCount} ${abstentionCount === 1 ? "abstención" : "abstenciones"}`
+      : "Sin abstenciones";
     row.innerHTML = `
       <td class="readonly-value">${postulante.numero}</td>
       <td><input type="text" value="${postulante.apellidos}" data-postulante="${index}" data-field="apellidos"></td>
@@ -2320,12 +2324,19 @@ function renderPostulantes() {
       <td><input type="checkbox" ${postulante.otroDepto ? "checked" : ""} data-postulante="${index}" data-field="otroDepto" aria-label="${postulante.apellidos || "Postulante"} pertenece a otro departamento"></td>
       <td><input type="checkbox" ${postulante.licencia ? "checked" : ""} data-postulante="${index}" data-field="licencia" aria-label="${postulante.apellidos || "Postulante"} tuvo Covid o licencia"></td>
       <td><input type="checkbox" ${postulante.opoVirtual ? "checked" : ""} data-postulante="${index}" data-field="opoVirtual" aria-label="${postulante.apellidos || "Postulante"} realizará oposición virtual"></td>
-      <td class="abstention-picker">${state.oposicion.evaluadores.map((evaluador) => `
-        <label style="${evaluatorStyle(evaluador.id)}">
-          <input type="checkbox" ${postulante.abstencionesOposicion?.[evaluador.id] ? "checked" : ""} data-postulante="${index}" data-abstencion-oposicion="${evaluador.id}" aria-label="${escapeAttribute(evaluador.nombre)} se abstiene para ${escapeAttribute(postulante.apellidos || "Postulante")}">
-          <span>${escapeHtml(evaluador.nombre)}</span>
-        </label>
-      `).join("")}</td>
+      <td class="abstention-picker">
+        <details>
+          <summary>${abstentionLabel}</summary>
+          <div class="abstention-options">
+            ${state.oposicion.evaluadores.map((evaluador) => `
+              <label style="${evaluatorStyle(evaluador.id)}">
+                <input type="checkbox" ${postulante.abstencionesOposicion?.[evaluador.id] ? "checked" : ""} data-postulante="${index}" data-abstencion-oposicion="${evaluador.id}" aria-label="${escapeAttribute(evaluador.nombre)} se abstiene para ${escapeAttribute(postulante.apellidos || "Postulante")}">
+                <span>${escapeHtml(evaluador.nombre)}</span>
+              </label>
+            `).join("")}
+          </div>
+        </details>
+      </td>
       <td><button class="icon-button" type="button" data-remove-postulante="${index}" title="Quitar postulante">×</button></td>
     `;
     tbody.appendChild(row);

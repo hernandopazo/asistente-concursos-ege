@@ -1255,15 +1255,43 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
 }
 
 .abstention-picker {
-  min-width: 190px;
+  min-width: 170px;
+  vertical-align: top;
+}
+
+.abstention-picker details {
+  position: relative;
+}
+
+.abstention-picker summary {
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.abstention-options {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgb(0 0 0 / 10%);
 }
 
 .abstention-picker label {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  margin: 2px 6px 2px 0;
-  padding: 3px 6px;
+  gap: 6px;
+  padding: 4px 6px;
   border: 1px solid var(--evaluator-color);
   border-radius: 4px;
   background: var(--evaluator-tint);
