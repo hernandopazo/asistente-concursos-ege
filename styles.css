@@ -650,6 +650,16 @@ h3 {
   justify-content: flex-end;
 }
 
+.export-scope-select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .tabs {
   position: sticky;
   top: 0;

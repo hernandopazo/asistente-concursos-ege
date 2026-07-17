@@ -5126,15 +5126,33 @@ function exportData() {
   lastJsonBackupAt = new Date();
 }
 
-function exportWorkbook(rows, sheetName, filename, columnWidths) {
-  if (typeof XLSX === "undefined") return;
-  const roundedRows = rows.map((row) => row.map((value) => {
+function roundedWorkbookRows(rows) {
+  return rows.map((row) => row.map((value) => {
     return typeof value === "number" ? roundToThree(value) : value;
   }));
-  const worksheet = XLSX.utils.aoa_to_sheet(roundedRows);
+}
+
+function safeSheetName(name) {
+  return String(name || "Hoja").replace(/[\/?*[\]:]/g, "-").slice(0, 31) || "Hoja";
+}
+
+function appendWorkbookSheet(workbook, rows, sheetName, columnWidths) {
+  const worksheet = XLSX.utils.aoa_to_sheet(roundedWorkbookRows(rows));
   worksheet["!cols"] = columnWidths.map((wch) => ({ wch }));
+  XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(sheetName));
+}
+
+function exportWorkbook(rows, sheetName, filename, columnWidths) {
+  if (typeof XLSX === "undefined") return;
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  appendWorkbookSheet(workbook, rows, sheetName, columnWidths);
+  XLSX.writeFile(workbook, `${filename}-${fileTimestamp()}.xlsx`, { bookType: "xlsx" });
+}
+
+function exportMultiSheetWorkbook(sheets, filename) {
+  if (typeof XLSX === "undefined") return;
+  const workbook = XLSX.utils.book_new();
+  sheets.forEach((sheet) => appendWorkbookSheet(workbook, sheet.rows, sheet.name, sheet.columnWidths));
   XLSX.writeFile(workbook, `${filename}-${fileTimestamp()}.xlsx`, { bookType: "xlsx" });
 }
 
@@ -5274,13 +5292,11 @@ function exportAntecedentExcel(moduleKey, activeId, title, filename, options = {
   exportWorkbook(rows, title.slice(0, 31), `${filename}-${activeId}`, [42, ...state.postulantes.map(() => 20)]);
 }
 
-function exportOposicionExcel() {
-  const evaluador = state.oposicion.evaluadores.find((item) => item.id === activeEvaluatorId) || state.oposicion.evaluadores[0];
-  if (!evaluador) return;
+function oposicionRowsForEvaluador(evaluador) {
   const oppositionExportValue = (postulante, value) => (
     evaluadorSeAbstieneOposicion(evaluador.id, postulante.id) ? "Abstención" : value
   );
-  const rows = [
+  return [
     ...exportHeaderRows("Oposición", evaluador.id),
     ["Campo / criterio", ...candidateColumns()],
     ["Fecha", ...state.postulantes.map((postulante) => oppositionExportValue(postulante, evaluador.evaluaciones[postulante.id]?.fecha || ""))],
@@ -5296,7 +5312,44 @@ function exportOposicionExcel() {
     ["Simple promedio", ...state.postulantes.map((postulante) => postulante.simple ? promedioOposicion(postulante.id) : "")],
     ["Exclusiva promedio", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(promedioOposicion(postulante.id)) : "")]
   ];
-  exportWorkbook(rows, "Oposición", `oposicion-${evaluador.id}`, [42, ...state.postulantes.map(() => 20)]);
+}
+
+function oposicionResumenRows() {
+  return [
+    ...exportHeaderRows("Oposición - resumen"),
+    ["Campo", ...candidateColumns()],
+    ...state.oposicion.evaluadores.map((evaluador) => [
+      `Simple ${evaluador.nombre}`,
+      ...state.postulantes.map((postulante) => evaluadorSeAbstieneOposicion(evaluador.id, postulante.id) ? "Abstención" : postulante.simple ? notaEvaluador(evaluador, postulante.id) : "")
+    ]),
+    ["Simple promedio", ...state.postulantes.map((postulante) => postulante.simple ? promedioOposicion(postulante.id) : "")],
+    [],
+    ...state.oposicion.evaluadores.map((evaluador) => [
+      `Exclusiva ${evaluador.nombre}`,
+      ...state.postulantes.map((postulante) => evaluadorSeAbstieneOposicion(evaluador.id, postulante.id) ? "Abstención" : postulante.exclusiva ? notaExclusivaDesdeSimple(notaEvaluador(evaluador, postulante.id)) : "")
+    ]),
+    ["Exclusiva promedio", ...state.postulantes.map((postulante) => postulante.exclusiva ? notaExclusivaDesdeSimple(promedioOposicion(postulante.id)) : "")]
+  ];
+}
+
+function exportOposicionExcel() {
+  const scope = document.querySelector("#export-oposicion-scope")?.value || "actual";
+  const columnWidths = [42, ...state.postulantes.map(() => 20)];
+  if (scope === "todos") {
+    const sheets = [
+      { name: "Resumen", rows: oposicionResumenRows(), columnWidths },
+      ...state.oposicion.evaluadores.map((evaluador, index) => ({
+        name: `${index + 1} ${evaluador.nombre}`,
+        rows: oposicionRowsForEvaluador(evaluador),
+        columnWidths
+      }))
+    ];
+    exportMultiSheetWorkbook(sheets, "oposicion-todos-evaluadores");
+    return;
+  }
+  const evaluador = state.oposicion.evaluadores.find((item) => item.id === activeEvaluatorId) || state.oposicion.evaluadores[0];
+  if (!evaluador) return;
+  exportWorkbook(oposicionRowsForEvaluador(evaluador), "Oposición", `oposicion-${evaluador.id}`, columnWidths);
 }
 
 function exportResultsExcel() {
