@@ -2689,6 +2689,7 @@ function renderEvaluadores() {
       if (isInvalid) return;
       const evaluacion = state.oposicion.evaluadores[Number(event.target.dataset.eval)].evaluaciones[event.target.dataset.postulanteId];
       evaluacion.notas[event.target.dataset.criterioId] = event.target.value;
+      persistLocalState();
       scheduleDerivedViewsRender();
       saveState();
       const score = container.querySelector(`[data-score-postulante="${event.target.dataset.postulanteId}"]`);

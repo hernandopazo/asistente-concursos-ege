@@ -175,7 +175,8 @@
     const remoteUpdatedAt = Date.parse(remoteState.updated_at || "") || 0;
     const sharedUpdatedAt = Date.parse(currentCompetition?.updated_at || "") || 0;
     const isOwnEvaluatorState = currentMember?.evaluator_key === evaluatorKey;
-    const remoteCanUpdateOpposition = isOwnEvaluatorState || !sharedUpdatedAt || remoteUpdatedAt >= sharedUpdatedAt;
+    const adminSession = currentMember?.role === "admin";
+    const remoteCanUpdateOpposition = !adminSession && (isOwnEvaluatorState || !sharedUpdatedAt || remoteUpdatedAt >= sharedUpdatedAt);
     if (evaluador && remoteCanUpdateOpposition) {
       evaluador.evaluaciones = mergeOppositionEvaluations(
         evaluador.evaluaciones,
