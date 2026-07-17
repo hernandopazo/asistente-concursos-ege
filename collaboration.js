@@ -99,10 +99,6 @@
 
   function sharedStateSnapshot() {
     const shared = clone(state);
-    shared.oposicion.evaluadores.forEach((evaluador) => {
-      evaluador.evaluaciones = {};
-      evaluador.anotaciones = "";
-    });
     moduleKeys.forEach((key) => {
       const consolidatedNotes = shared[key].anotaciones?.consolidada || "";
       shared[key].cargasEvaluadores = {};

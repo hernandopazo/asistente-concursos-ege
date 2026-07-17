@@ -1743,6 +1743,14 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
   font-size: 17px;
 }
 
+.opposition-matrix .score-cell strong {
+  display: inline-block;
+  min-width: 5.5ch;
+  line-height: 1.1;
+  text-align: center;
+  text-decoration: none;
+}
+
 .opposition-matrix .average-row th,
 .opposition-matrix .average-row td {
   border-top: 2px solid #87929c;
