@@ -237,6 +237,36 @@ body.auth-locked {
   line-height: 1.3;
 }
 
+
+.contest-lock-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.contest-lock-control .inline-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.contest-lock-control .inline-status.is-error {
+  color: #9f241b;
+}
+
+body.contest-locked main::before {
+  content: "Concurso bloqueado: no se aceptan nuevas cargas ni ediciones.";
+  display: block;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #e1c46b;
+  background: #fff8dc;
+  color: #765a13;
+  font-weight: 900;
+}
+
 .competition-document {
   display: flex;
   align-items: center;

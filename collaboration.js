@@ -836,6 +836,7 @@
       "#clear-antecedent-notes",
       "#individual-import-evaluator",
       "#import-individual-data",
+      "#contest-lock-toggle",
     ];
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));
 
@@ -869,6 +870,12 @@
     setDisabled("#otros-matrix input, #otros-matrix textarea, #otros-matrix select", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
     setDisabled("#teaching-origin-editor input", ownLoadLocked && activeDocentesCargaId === evaluatorKey);
     setDisabled("#publication-editor input", ownLoadLocked && activeCientificosCargaId === evaluatorKey);
+
+    if (window.isContestLocked?.()) {
+      window.applyContestLock?.();
+      setDisabled("#contest-lock-toggle", !isAdmin);
+      return;
+    }
 
     setDisabled(
       "#docentes-evaluation-controls input, #cientificos-evaluation-controls input, "

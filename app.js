@@ -81,6 +81,7 @@ const initialState = {
   administrativeDetails: "",
   contestStartDate: "",
   contestEndDate: "",
+  contestLocked: false,
   evaluatorLocks: {},
   scoreConfigurationLocks: {
     postulantes: true,
@@ -840,6 +841,44 @@ const SCORE_CONFIGURATION_AREAS = {
   profesionales: "#profesionales-config-panel",
   otros: "#otros-config-panel"
 };
+
+
+function isContestLocked() {
+  return Boolean(state.contestLocked);
+}
+
+function applyContestLock() {
+  const locked = isContestLocked();
+  document.body.classList.toggle("contest-locked", locked);
+  const button = document.querySelector("#contest-lock-toggle");
+  const status = document.querySelector("#contest-lock-status");
+  if (button) {
+    button.textContent = locked ? "Desbloquear concurso" : "Bloquear concurso";
+    button.classList.toggle("primary-button", !locked);
+    button.classList.toggle("secondary-button", locked);
+    button.setAttribute("aria-pressed", String(locked));
+  }
+  if (status) {
+    status.textContent = locked ? "Concurso bloqueado: no se aceptan cargas" : "Concurso editable";
+    status.classList.toggle("is-error", locked);
+  }
+  document.querySelectorAll("input, select, textarea, button").forEach((control) => {
+    if (control.closest("#auth-gate, #password-setup-gate")) return;
+    if (control.matches("#auth-sign-out, #contest-lock-toggle")) return;
+    if (control.closest(".competition-document")) return;
+    control.disabled = locked;
+  });
+}
+
+function toggleContestLock() {
+  state.contestLocked = !isContestLocked();
+  applyContestLock();
+  saveState();
+  window.collaboration?.applyPermissions?.();
+}
+
+window.isContestLocked = isContestLocked;
+window.applyContestLock = applyContestLock;
 
 function isScoreConfigurationLocked(key) {
   return state.scoreConfigurationLocks?.[key] !== false;
@@ -2172,6 +2211,7 @@ function render() {
   renderProfesionalesView();
   renderOtrosView();
   applyScoreConfigurationLocks();
+  applyContestLock();
   saveState();
   window.collaboration?.applyPermissions?.();
 }
@@ -5736,6 +5776,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
 document.querySelectorAll("[data-score-lock]").forEach((button) => {
   button.addEventListener("click", () => toggleScoreConfigurationLock(button.dataset.scoreLock));
 });
+document.querySelector("#contest-lock-toggle")?.addEventListener("click", toggleContestLock);
 document.querySelector("#add-postulante").addEventListener("click", addPostulante);
 document.querySelector("#administrative-details").addEventListener("input", (event) => {
   state.administrativeDetails = event.target.value;
