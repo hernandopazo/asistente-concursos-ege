@@ -140,7 +140,7 @@
     return Object.values(evaluacion.notas || {}).some((value) => value !== "" && value !== undefined && value !== null);
   }
 
-  function mergeOppositionEvaluations(localEvaluations = {}, remoteEvaluations = {}) {
+  function mergeOppositionEvaluations(localEvaluations = {}, remoteEvaluations = {}, preferRemote = false) {
     const merged = clone(localEvaluations || {});
     Object.entries(remoteEvaluations || {}).forEach(([postulanteId, remoteEvaluation]) => {
       const localEvaluation = merged[postulanteId];
@@ -148,11 +148,17 @@
       const mergedEvaluation = clone(localEvaluation || {});
       ["fecha", "tema", "comentarios"].forEach((field) => {
         const value = remoteEvaluation?.[field];
-        if (value !== "" && value !== undefined && value !== null) mergedEvaluation[field] = value;
+        const localValue = mergedEvaluation[field];
+        if (value !== "" && value !== undefined && value !== null && (preferRemote || localValue === "" || localValue === undefined || localValue === null)) {
+          mergedEvaluation[field] = value;
+        }
       });
       mergedEvaluation.notas ||= {};
       Object.entries(remoteEvaluation?.notas || {}).forEach(([criterioId, value]) => {
-        if (value !== "" && value !== undefined && value !== null) mergedEvaluation.notas[criterioId] = value;
+        const localValue = mergedEvaluation.notas[criterioId];
+        if (value !== "" && value !== undefined && value !== null && (preferRemote || localValue === "" || localValue === undefined || localValue === null)) {
+          mergedEvaluation.notas[criterioId] = value;
+        }
       });
       merged[postulanteId] = mergedEvaluation;
     });
@@ -167,11 +173,13 @@
     state.evaluatorLocks[evaluatorKey] = Boolean(remoteState.data.locked);
     const remoteUpdatedAt = Date.parse(remoteState.updated_at || "") || 0;
     const sharedUpdatedAt = Date.parse(currentCompetition?.updated_at || "") || 0;
-    const remoteCanUpdateOpposition = !sharedUpdatedAt || remoteUpdatedAt >= sharedUpdatedAt;
+    const isOwnEvaluatorState = currentMember?.evaluator_key === evaluatorKey;
+    const remoteCanUpdateOpposition = isOwnEvaluatorState || !sharedUpdatedAt || remoteUpdatedAt >= sharedUpdatedAt;
     if (evaluador && remoteCanUpdateOpposition) {
       evaluador.evaluaciones = mergeOppositionEvaluations(
         evaluador.evaluaciones,
-        remoteState.data.oppositionEvaluations || {}
+        remoteState.data.oppositionEvaluations || {},
+        isOwnEvaluatorState
       );
       if (String(remoteState.data.oppositionAnnotations || "").trim() || !String(evaluador.anotaciones || "").trim()) {
         evaluador.anotaciones = remoteState.data.oppositionAnnotations || "";
