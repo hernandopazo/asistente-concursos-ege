@@ -336,6 +336,15 @@
       profesionales: activeProfesionalesCargaId,
       otros: activeOtrosCargaId
     };
+    const localOppositionBeforeReload = preserveAdminSelection
+      ? Object.fromEntries((state.oposicion?.evaluadores || []).map((evaluador) => [
+        evaluador.id,
+        {
+          evaluaciones: clone(evaluador.evaluaciones || {}),
+          anotaciones: evaluador.anotaciones || ""
+        }
+      ]))
+      : {};
 
     currentCompetition = competition;
     currentMember = membership.member;
@@ -344,6 +353,18 @@
     state = seedEvaluations(migrateState(clone(competition.shared_state)));
     normalizeEvaluatorNames(currentMember);
     remoteStates.forEach(mergeEvaluatorState);
+    if (preserveAdminSelection) {
+      state.oposicion.evaluadores.forEach((evaluador) => {
+        const localOpposition = localOppositionBeforeReload[evaluador.id];
+        if (!localOpposition) return;
+        evaluador.evaluaciones = mergeOppositionEvaluations(
+          evaluador.evaluaciones,
+          localOpposition.evaluaciones,
+          true
+        );
+        if (String(localOpposition.anotaciones || "").trim()) evaluador.anotaciones = localOpposition.anotaciones;
+      });
+    }
     window.syncAllConsolidatedAntecedents?.();
 
     const firstEvaluatorKey = state.oposicion.evaluadores[0]?.id || null;
