@@ -2550,6 +2550,7 @@ function renderEvaluadores() {
     button.textContent = evaluador.nombre;
     button.setAttribute("style", evaluatorStyle(evaluador.id));
     button.addEventListener("click", () => {
+      persistLocalState();
       activeEvaluatorId = evaluador.id;
       renderEvaluadores();
     });

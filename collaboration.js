@@ -32,6 +32,7 @@
   let reloadPending = false;
   let suppressSave = true;
   let saving = false;
+  let localChangesPending = false;
   let loadedUserId = null;
   let sessionSequence = 0;
   let occupiedEvaluatorKeys = new Map();
@@ -409,6 +410,7 @@
           })));
         if (error) throw error;
       }
+      localChangesPending = false;
       setSyncStatus(`Guardado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`, "is-saved");
     } catch (error) {
       setSyncStatus(error.message || "No se pudo guardar", "is-error");
@@ -420,6 +422,7 @@
 
   function scheduleSave() {
     if (suppressSave || !currentCompetition) return;
+    localChangesPending = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
@@ -464,7 +467,10 @@
     reloadTimer = setTimeout(() => {
       reloadTimer = null;
       if (!reloadPending || !currentCompetition) return;
-      if (saving || saveTimer || isEditingControl()) return;
+      if (saving || saveTimer || localChangesPending || isEditingControl()) {
+        queueReload(1000);
+        return;
+      }
       reloadPending = false;
       loadCompetition(currentCompetition.id).catch((error) => {
         setSyncStatus(error.message || "No se pudieron actualizar los datos compartidos", "is-error");
