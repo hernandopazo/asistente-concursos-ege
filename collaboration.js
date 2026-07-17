@@ -132,15 +132,50 @@
     };
   }
 
+  function hasFilledOppositionEvaluation(evaluacion) {
+    if (!evaluacion) return false;
+    if (String(evaluacion.fecha || "").trim()) return true;
+    if (String(evaluacion.tema || "").trim()) return true;
+    if (String(evaluacion.comentarios || "").trim()) return true;
+    return Object.values(evaluacion.notas || {}).some((value) => value !== "" && value !== undefined && value !== null);
+  }
+
+  function mergeOppositionEvaluations(localEvaluations = {}, remoteEvaluations = {}) {
+    const merged = clone(localEvaluations || {});
+    Object.entries(remoteEvaluations || {}).forEach(([postulanteId, remoteEvaluation]) => {
+      const localEvaluation = merged[postulanteId];
+      if (!hasFilledOppositionEvaluation(remoteEvaluation) && hasFilledOppositionEvaluation(localEvaluation)) return;
+      const mergedEvaluation = clone(localEvaluation || {});
+      ["fecha", "tema", "comentarios"].forEach((field) => {
+        const value = remoteEvaluation?.[field];
+        if (value !== "" && value !== undefined && value !== null) mergedEvaluation[field] = value;
+      });
+      mergedEvaluation.notas ||= {};
+      Object.entries(remoteEvaluation?.notas || {}).forEach(([criterioId, value]) => {
+        if (value !== "" && value !== undefined && value !== null) mergedEvaluation.notas[criterioId] = value;
+      });
+      merged[postulanteId] = mergedEvaluation;
+    });
+    return merged;
+  }
+
   function mergeEvaluatorState(remoteState) {
     const evaluatorKey = remoteState?.data?.evaluatorKey;
     if (!evaluatorKey) return;
     const evaluador = state.oposicion.evaluadores.find((item) => item.id === evaluatorKey);
     state.evaluatorLocks ||= {};
     state.evaluatorLocks[evaluatorKey] = Boolean(remoteState.data.locked);
-    if (evaluador) {
-      evaluador.evaluaciones = clone(remoteState.data.oppositionEvaluations || {});
-      evaluador.anotaciones = remoteState.data.oppositionAnnotations || "";
+    const remoteUpdatedAt = Date.parse(remoteState.updated_at || "") || 0;
+    const sharedUpdatedAt = Date.parse(currentCompetition?.updated_at || "") || 0;
+    const remoteCanUpdateOpposition = !sharedUpdatedAt || remoteUpdatedAt >= sharedUpdatedAt;
+    if (evaluador && remoteCanUpdateOpposition) {
+      evaluador.evaluaciones = mergeOppositionEvaluations(
+        evaluador.evaluaciones,
+        remoteState.data.oppositionEvaluations || {}
+      );
+      if (String(remoteState.data.oppositionAnnotations || "").trim() || !String(evaluador.anotaciones || "").trim()) {
+        evaluador.anotaciones = remoteState.data.oppositionAnnotations || "";
+      }
     }
     Object.entries(remoteState.data.oppositionAbstentions || {}).forEach(([postulanteId, abstained]) => {
       const postulante = state.postulantes.find((item) => item.id === postulanteId);
