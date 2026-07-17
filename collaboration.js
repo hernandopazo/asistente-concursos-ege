@@ -33,6 +33,7 @@
   let suppressSave = true;
   let saving = false;
   let localChangesPending = false;
+  let localChangeVersion = 0;
   let loadedUserId = null;
   let sessionSequence = 0;
   let occupiedEvaluatorKeys = new Map();
@@ -402,6 +403,7 @@
 
   async function saveRemoteState() {
     if (suppressSave || saving || !currentCompetition || !currentMember) return;
+    const saveVersion = localChangeVersion;
     saving = true;
     setSyncStatus("Guardando…", "is-saving");
     try {
@@ -432,8 +434,14 @@
           })));
         if (error) throw error;
       }
-      localChangesPending = false;
-      setSyncStatus(`Guardado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`, "is-saved");
+      if (saveVersion === localChangeVersion) {
+        localChangesPending = false;
+        setSyncStatus(`Guardado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`, "is-saved");
+      } else {
+        localChangesPending = true;
+        setSyncStatus("Guardando cambios pendientes…", "is-saving");
+        scheduleSave(false);
+      }
     } catch (error) {
       setSyncStatus(error.message || "No se pudo guardar", "is-error");
     } finally {
@@ -442,9 +450,12 @@
     }
   }
 
-  function scheduleSave() {
+  function scheduleSave(markChange = true) {
     if (suppressSave || !currentCompetition) return;
-    localChangesPending = true;
+    if (markChange) {
+      localChangesPending = true;
+      localChangeVersion += 1;
+    }
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
