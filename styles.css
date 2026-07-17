@@ -651,7 +651,8 @@ h3 {
 
 .header-evaluator-row {
   display: grid;
-  grid-template-columns: 38px minmax(160px, 1fr) 36px;
+  grid-template-columns: 38px minmax(160px, 1fr) auto 36px;
+  align-items: center;
   gap: 7px;
 }
 
@@ -673,6 +674,55 @@ h3 {
   min-height: 36px;
   padding: 3px !important;
   cursor: pointer;
+}
+
+.evaluator-presence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.evaluator-presence.is-online {
+  color: #176c3a;
+  background: #eaf6ef;
+}
+
+.evaluator-presence.is-offline {
+  color: #b3261e;
+  background: #ffe9e6;
+}
+
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.evaluator-presence.is-compact {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.evaluator-presence.is-compact .presence-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .section-actions {
@@ -1650,6 +1700,9 @@ body.no-shared-competition:not(.auth-locked) .tab:disabled {
 }
 
 .evaluator-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   flex: 0 0 auto;
   min-height: 38px;
   padding: 0 14px;

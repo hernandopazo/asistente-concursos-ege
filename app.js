@@ -2526,6 +2526,44 @@ function removeEvaluator(evaluatorId) {
   render();
 }
 
+function evaluatorPresenceState(evaluatorId) {
+  const online = Boolean(window.collaboration?.isEvaluatorOnline?.(evaluatorId));
+  return {
+    online,
+    label: online ? "Online" : "Offline"
+  };
+}
+
+function evaluatorPresenceHtml(evaluatorId, compact = false) {
+  const presence = evaluatorPresenceState(evaluatorId);
+  return `
+    <span
+      class="evaluator-presence${presence.online ? " is-online" : " is-offline"}${compact ? " is-compact" : ""}"
+      data-evaluator-presence="${escapeAttribute(evaluatorId)}"
+      role="status"
+      aria-label="Evaluador ${presence.label}"
+      title="${presence.label}"
+    >
+      <span class="presence-dot" aria-hidden="true"></span>
+      <span class="presence-label">${presence.label}</span>
+    </span>
+  `;
+}
+
+function renderEvaluatorPresence() {
+  document.querySelectorAll("[data-evaluator-presence]").forEach((element) => {
+    const presence = evaluatorPresenceState(element.dataset.evaluatorPresence);
+    element.classList.toggle("is-online", presence.online);
+    element.classList.toggle("is-offline", !presence.online);
+    element.setAttribute("aria-label", `Evaluador ${presence.label}`);
+    element.setAttribute("title", presence.label);
+    const label = element.querySelector(".presence-label");
+    if (label) label.textContent = presence.label;
+  });
+}
+
+window.renderEvaluatorPresence = renderEvaluatorPresence;
+
 function renderHeaderEvaluators() {
   const container = document.querySelector("#header-evaluators-list");
   if (!state.oposicion.evaluadores.length) {
@@ -2536,6 +2574,7 @@ function renderHeaderEvaluators() {
     <div class="header-evaluator-row" style="${evaluatorStyle(evaluador.id)}">
       <input class="evaluator-color-input" type="color" value="${evaluador.color}" data-header-evaluator-color="${evaluador.id}" aria-label="Color de ${escapeAttribute(evaluador.nombre)}">
       <input type="text" value="${escapeAttribute(evaluador.nombre)}" data-header-evaluator-name="${evaluador.id}" aria-label="Nombre del evaluador">
+      ${evaluatorPresenceHtml(evaluador.id)}
       <button class="icon-button" type="button" data-header-remove-evaluator="${evaluador.id}" title="Quitar evaluador">×</button>
     </div>
   `).join("");
@@ -2587,7 +2626,7 @@ function renderEvaluadores() {
     const button = document.createElement("button");
     button.className = `evaluator-tab evaluator-color-tab${evaluador.id === activeEvaluatorId ? " is-active" : ""}`;
     button.type = "button";
-    button.textContent = evaluador.nombre;
+    button.innerHTML = `${evaluatorPresenceHtml(evaluador.id, true)}<span>${escapeHtml(evaluador.nombre)}</span>`;
     button.setAttribute("style", evaluatorStyle(evaluador.id));
     button.addEventListener("click", () => {
       persistLocalState();

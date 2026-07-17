@@ -38,6 +38,7 @@
   let sessionSequence = 0;
   let occupiedEvaluatorKeys = new Map();
   let competitionMembers = [];
+  let onlineEvaluatorKeys = new Set();
   let passwordSetupRequired = new URLSearchParams(window.location.search).get("invite") === "1";
 
   function withTimeout(promise, milliseconds, message) {
@@ -466,7 +467,13 @@
   function subscribeRealtime(competitionId) {
     if (realtimeChannel) client.removeChannel(realtimeChannel);
     realtimeChannel = client
-      .channel(`competition-${competitionId}`)
+      .channel(`competition-${competitionId}`, {
+        config: {
+          presence: {
+            key: session?.user?.id || `local-${Date.now()}`
+          }
+        }
+      })
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "competitions", filter: `id=eq.${competitionId}` },
@@ -482,7 +489,36 @@
         { event: "*", schema: "public", table: "competition_members", filter: `competition_id=eq.${competitionId}` },
         scheduleReload
       )
-      .subscribe();
+      .on("presence", { event: "sync" }, updateOnlineEvaluators)
+      .subscribe((status) => {
+        if (status !== "SUBSCRIBED") return;
+        trackPresence();
+      });
+  }
+
+  function trackPresence() {
+    if (!realtimeChannel || !session || !currentMember) return;
+    realtimeChannel.track({
+      user_id: session.user.id,
+      evaluator_key: currentMember.evaluator_key || null,
+      role: currentMember.role || "evaluator",
+      display_name: currentMember.display_name || session.user.email || "",
+      online_at: new Date().toISOString()
+    });
+  }
+
+  function updateOnlineEvaluators() {
+    if (!realtimeChannel) return;
+    const nextOnline = new Set();
+    Object.values(realtimeChannel.presenceState()).forEach((presences) => {
+      presences.forEach((presence) => {
+        if (presence.evaluator_key) nextOnline.add(presence.evaluator_key);
+      });
+    });
+    const changed = nextOnline.size !== onlineEvaluatorKeys.size
+      || [...nextOnline].some((key) => !onlineEvaluatorKeys.has(key));
+    onlineEvaluatorKeys = nextOnline;
+    if (changed) window.renderEvaluatorPresence?.();
   }
 
   function scheduleReload() {
@@ -924,7 +960,13 @@
       currentMember = null;
       competitionMembers = [];
       occupiedEvaluatorKeys = new Map();
+      onlineEvaluatorKeys = new Set();
       suppressSave = true;
+      if (realtimeChannel) {
+        client.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+      window.renderEvaluatorPresence?.();
       authGate.hidden = false;
       toolbar.hidden = true;
       accessPanel.hidden = true;
@@ -1050,6 +1092,7 @@
   document.querySelector("#auth-sign-out").addEventListener("click", async () => {
     if (currentCompetition && currentMember) {
       await saveRemoteState();
+      await realtimeChannel?.untrack();
       if (window.confirm("¿Desea descargar un respaldo JSON antes de salir?")) {
         document.querySelector("#export-data").click();
       }
@@ -1086,6 +1129,7 @@
     applyPermissions,
     currentEvaluatorKey: () => currentMember?.evaluator_key || null,
     currentRole: () => currentMember?.role || null,
+    isEvaluatorOnline: (evaluatorKey) => onlineEvaluatorKeys.has(evaluatorKey),
     client
   };
 
