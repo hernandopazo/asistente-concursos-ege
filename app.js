@@ -1168,12 +1168,12 @@ function updateAllEvaluatorLocksButton() {
   const hasEvaluators = Boolean(state.oposicion?.evaluadores?.length);
   const locked = allEvaluatorLoadsLocked();
   button.disabled = !hasEvaluators;
-  button.textContent = locked ? "Habilitar todas las cargas" : "Bloquear todas las cargas";
+  button.textContent = locked ? "Reabrir carga de evaluadores" : "Cerrar carga de evaluadores";
   button.classList.toggle("is-locked", locked);
   button.setAttribute("aria-pressed", locked ? "true" : "false");
   button.title = locked
     ? "Permite que los evaluadores vuelvan a editar sus cargas"
-    : "Bloquea la edición de todas las cargas individuales de evaluadores";
+    : "Cierra la edición de las cargas individuales de evaluadores";
 }
 
 function toggleAllEvaluatorLocks() {
