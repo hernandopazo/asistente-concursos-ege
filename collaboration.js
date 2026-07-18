@@ -572,6 +572,11 @@
       : session?.user?.email || "";
     document.querySelector("#manage-access").hidden = currentMember?.role !== "admin";
     document.querySelector("#manage-access").disabled = !currentCompetition;
+    const allLocksButton = document.querySelector("#toggle-all-evaluator-locks");
+    if (allLocksButton) {
+      allLocksButton.hidden = currentMember?.role !== "admin";
+      allLocksButton.disabled = !currentCompetition;
+    }
     const lockButton = document.querySelector("#evaluator-lock-toggle");
     if (lockButton) {
       const locked = Boolean(currentMember?.evaluator_key && window.isEvaluatorLocked?.(currentMember.evaluator_key));
@@ -874,12 +879,12 @@
     if (!session || !currentCompetition || !currentMember) return;
     const isAdmin = currentMember.role === "admin";
     const evaluatorKey = currentMember.evaluator_key;
-    const ownLoadLocked = Boolean(evaluatorKey && window.isEvaluatorLocked?.(evaluatorKey));
 
     const adminSelectors = [
       "#header-evaluators-list input",
       "#header-evaluators-list button",
       "#add-evaluador",
+      "#toggle-all-evaluator-locks",
       "#clear-antecedent-notes",
       "#individual-import-evaluator",
       "#import-individual-data",
@@ -905,22 +910,28 @@
     const postulantesLocked = window.isScoreConfigurationLocked?.("postulantes") !== false;
     setDisabled("#postulantes [data-abstencion-oposicion]", postulantesLocked);
 
-    const oppositionOwnLocked = ownLoadLocked && activeEvaluatorId === evaluatorKey;
+    const activeOppositionLocked = Boolean(activeEvaluatorId && window.isEvaluatorLocked?.(activeEvaluatorId));
+    const docentesLoadLocked = Boolean(activeDocentesCargaId !== "consolidada" && window.isEvaluatorLocked?.(activeDocentesCargaId));
+    const cientificosLoadLocked = Boolean(activeCientificosCargaId !== "consolidada" && window.isEvaluatorLocked?.(activeCientificosCargaId));
+    const extensionLoadLocked = Boolean(activeExtensionCargaId !== "consolidada" && window.isEvaluatorLocked?.(activeExtensionCargaId));
+    const profesionalesLoadLocked = Boolean(activeProfesionalesCargaId !== "consolidada" && window.isEvaluatorLocked?.(activeProfesionalesCargaId));
+    const otrosLoadLocked = Boolean(activeOtrosCargaId !== "consolidada" && window.isEvaluatorLocked?.(activeOtrosCargaId));
     setDisabled(
       "#evaluadores-list input, #evaluadores-list textarea",
-      (!isAdmin && activeEvaluatorId !== evaluatorKey) || oppositionOwnLocked
+      (!isAdmin && activeEvaluatorId !== evaluatorKey) || activeOppositionLocked
     );
-    setDisabled("#docentes-matrix input, #docentes-matrix textarea", (activeDocentesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeDocentesCargaId === evaluatorKey));
-    setDisabled("#cientificos-matrix input, #cientificos-matrix textarea", (activeCientificosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeCientificosCargaId === evaluatorKey));
-    setDisabled("#extension-matrix input, #extension-matrix textarea", (activeExtensionCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeExtensionCargaId === evaluatorKey));
-    setDisabled("#profesionales-matrix input, #profesionales-matrix textarea", (activeProfesionalesCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeProfesionalesCargaId === evaluatorKey));
-    setDisabled("#otros-matrix input, #otros-matrix textarea, #otros-matrix select", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || (ownLoadLocked && activeOtrosCargaId === evaluatorKey));
-    setDisabled("#teaching-origin-editor input", ownLoadLocked && activeDocentesCargaId === evaluatorKey);
-    setDisabled("#publication-editor input", ownLoadLocked && activeCientificosCargaId === evaluatorKey);
+    setDisabled("#docentes-matrix input, #docentes-matrix textarea", (activeDocentesCargaId !== evaluatorKey && !isAdmin) || docentesLoadLocked);
+    setDisabled("#cientificos-matrix input, #cientificos-matrix textarea", (activeCientificosCargaId !== evaluatorKey && !isAdmin) || cientificosLoadLocked);
+    setDisabled("#extension-matrix input, #extension-matrix textarea", (activeExtensionCargaId !== evaluatorKey && !isAdmin) || extensionLoadLocked);
+    setDisabled("#profesionales-matrix input, #profesionales-matrix textarea", (activeProfesionalesCargaId !== evaluatorKey && !isAdmin) || profesionalesLoadLocked);
+    setDisabled("#otros-matrix input, #otros-matrix textarea, #otros-matrix select", (activeOtrosCargaId !== evaluatorKey && !isAdmin) || otrosLoadLocked);
+    setDisabled("#teaching-origin-editor input", docentesLoadLocked);
+    setDisabled("#publication-editor input", cientificosLoadLocked);
 
     if (window.isContestLocked?.()) {
       window.applyContestLock?.();
       setDisabled("#contest-lock-toggle", !isAdmin);
+      setDisabled("#toggle-all-evaluator-locks", !isAdmin);
       return;
     }
 

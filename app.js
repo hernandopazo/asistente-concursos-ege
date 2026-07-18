@@ -864,7 +864,7 @@ function applyContestLock() {
   }
   document.querySelectorAll("input, select, textarea, button").forEach((control) => {
     if (control.closest("#auth-gate, #password-setup-gate")) return;
-    if (control.matches("#auth-sign-out, #contest-lock-toggle")) return;
+    if (control.matches("#auth-sign-out, #contest-lock-toggle, #toggle-all-evaluator-locks")) return;
     if (control.closest(".competition-document")) return;
     control.disabled = locked;
   });
@@ -1147,6 +1147,40 @@ function setEvaluatorLocked(evaluatorId, locked) {
   window.collaboration?.applyPermissions?.();
 }
 
+function allEvaluatorLoadsLocked() {
+  const evaluadores = state.oposicion?.evaluadores || [];
+  return evaluadores.length > 0 && evaluadores.every((evaluador) => isEvaluatorLocked(evaluador.id));
+}
+
+function setAllEvaluatorLoadsLocked(locked) {
+  state.evaluatorLocks ||= {};
+  state.oposicion.evaluadores.forEach((evaluador) => {
+    state.evaluatorLocks[evaluador.id] = Boolean(locked);
+  });
+  saveState();
+  window.collaboration?.scheduleSave?.();
+  window.collaboration?.applyPermissions?.();
+}
+
+function updateAllEvaluatorLocksButton() {
+  const button = document.querySelector("#toggle-all-evaluator-locks");
+  if (!button) return;
+  const hasEvaluators = Boolean(state.oposicion?.evaluadores?.length);
+  const locked = allEvaluatorLoadsLocked();
+  button.disabled = !hasEvaluators;
+  button.textContent = locked ? "Habilitar todas las cargas" : "Bloquear todas las cargas";
+  button.classList.toggle("is-locked", locked);
+  button.setAttribute("aria-pressed", locked ? "true" : "false");
+  button.title = locked
+    ? "Permite que los evaluadores vuelvan a editar sus cargas"
+    : "Bloquea la edición de todas las cargas individuales de evaluadores";
+}
+
+function toggleAllEvaluatorLocks() {
+  setAllEvaluatorLoadsLocked(!allEvaluatorLoadsLocked());
+  render();
+}
+
 function updateLoadLockButton(buttonId, evaluatorId, canShow, rerender) {
   const button = document.querySelector(`#${buttonId}`);
   if (!button) return;
@@ -1387,7 +1421,7 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
   const individual = module.modalidad === "evaluadores";
   const currentEvaluatorKey = window.collaboration?.currentEvaluatorKey?.();
   const canLockActiveLoad = individual && activeId !== "consolidada" && activeId === currentEvaluatorKey;
-  const activeLoadLocked = canLockActiveLoad && window.isEvaluatorLocked?.(activeId);
+  const activeLoadLocked = individual && activeId !== "consolidada" && window.isEvaluatorLocked?.(activeId);
   container.innerHTML = `
     <div class="evaluation-mode-selector">
       <span>Modalidad de carga</span>
@@ -1404,7 +1438,7 @@ function renderAntecedentEvaluationControls(moduleKey, activeId, setActiveId, re
       <p class="evaluation-mode-note">${activeId === "consolidada"
         ? "Los campos con diferencias entre evaluadores se resaltan. Esta carga es la utilizada en Resultados."
         : activeLoadLocked
-          ? "Su carga está bloqueada para evitar cambios accidentales. Puede volver a editarla cuando lo necesite."
+          ? "Esta carga está bloqueada para evitar cambios accidentales. Un administrador puede volver a habilitarla."
           : "Esta carga individual actualiza la consolidada sólo si todos los evaluadores coinciden; si falta una carga o hay diferencia, el campo consolidado queda vacío para revisión."}</p>
     ` : `<p class="evaluation-mode-note">La tabla actual es la carga consolidada utilizada en Resultados.</p>`}
   `;
@@ -2608,6 +2642,7 @@ function renderHeaderEvaluators() {
       render();
     });
   });
+  updateAllEvaluatorLocksButton();
 }
 
 function renderEvaluadores() {
@@ -5816,6 +5851,7 @@ document.querySelectorAll("[data-score-lock]").forEach((button) => {
   button.addEventListener("click", () => toggleScoreConfigurationLock(button.dataset.scoreLock));
 });
 document.querySelector("#contest-lock-toggle")?.addEventListener("click", toggleContestLock);
+document.querySelector("#toggle-all-evaluator-locks")?.addEventListener("click", toggleAllEvaluatorLocks);
 document.querySelector("#add-postulante").addEventListener("click", addPostulante);
 document.querySelector("#administrative-details").addEventListener("input", (event) => {
   state.administrativeDetails = event.target.value;

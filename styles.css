@@ -638,7 +638,15 @@ h3 {
   font-size: 12px;
 }
 
-.header-evaluators-heading .primary-button {
+.header-evaluators-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.header-evaluators-heading .primary-button,
+.header-evaluators-heading .secondary-button {
   flex: 0 0 auto;
   min-height: 36px;
   padding: 0 12px;
