@@ -35,6 +35,8 @@ El administrador puede:
 - Autorizar accesos.
 - Editar nombres y colores de evaluadores.
 - Corregir cargas de cualquier evaluador.
+- Ver si cada evaluador de la terna está online u offline.
+- Cerrar o reabrir la carga de evaluadores.
 - Elegir si una solapa se trabaja como carga consolidada o como carga independiente por evaluador.
 - Consolidar resultados.
 - Importar respaldos JSON completos o cargas individuales.
@@ -47,6 +49,32 @@ El administrador principal puede asignar un único co-administrador. El co-admin
 ### Evaluador
 
 Cada evaluador carga su propia evaluación individual. En modo de carga independiente, cada evaluador trabaja sobre su propia planilla y no necesita seleccionar participantes manualmente: todos los evaluadores de la terna intervienen.
+
+## Estado De Evaluadores
+
+En la solapa Concurso, sección **Evaluadores de la comisión**, el administrador puede ver si cada evaluador está **Online** u **Offline**.
+
+El estado online/offline se basa en la presencia en tiempo real de Supabase: indica si esa persona tiene una sesión activa conectada al concurso compartido. No reemplaza los respaldos JSON ni confirma que todos los cambios hayan terminado de sincronizarse.
+
+También aparece un indicador compacto en las solapas de evaluadores de Oposición para facilitar el trabajo simultáneo.
+
+## Cierre De Cargas
+
+El administrador dispone del botón **Cerrar carga de evaluadores** en la solapa Concurso.
+
+Este botón bloquea la edición de las cargas individuales de todos los evaluadores, pero mantiene visibles sus solapas para revisión, comparación y exportación. Cuando la carga está cerrada, el botón cambia a **Reabrir carga de evaluadores**.
+
+Cerrar carga de evaluadores no es lo mismo que bloquear el concurso:
+
+- **Cerrar carga de evaluadores:** congela las cargas individuales de evaluadores. Sirve para terminar la etapa de carga y revisar resultados.
+- **Bloquear concurso:** congela de forma general el concurso y sus datos principales. Es una acción más amplia, pensada para el cierre final.
+
+Flujo recomendado:
+
+1. Mantener el concurso editable durante la evaluación.
+2. Usar **Cerrar carga de evaluadores** cuando todos hayan terminado.
+3. Revisar diferencias, resultados, exportaciones y orden de mérito.
+4. Usar **Bloquear concurso** sólo cuando el estado final ya esté confirmado.
 
 ## Postulantes
 
@@ -192,6 +220,7 @@ La aplicación utiliza Supabase para:
 - Guardar la configuración compartida del concurso.
 - Mantener separada la carga individual de cada evaluador.
 - Sincronizar datos entre computadoras.
+- Mostrar presencia online/offline de evaluadores conectados.
 - Controlar permisos mediante políticas RLS.
 
 El navegador conserva además una copia local mediante `localStorage`.
