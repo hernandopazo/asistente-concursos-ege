@@ -185,9 +185,17 @@
                 Importar JSON completo
                 <input id="import-data" type="file" accept="application/json" />
               </label>
-              <button id="undo-full-import" class="secondary-button" type="button" hidden>Deshacer última importación</button>
             </div>
             <p id="full-import-status" class="inline-status" aria-live="polite"></p>
+            <details id="import-recovery-panel" class="import-recovery-panel" hidden>
+              <summary>Recuperación avanzada</summary>
+              <div class="import-recovery-content">
+                <strong>Restaurar el estado anterior a la última importación</strong>
+                <p id="import-recovery-details"></p>
+                <p id="import-recovery-change-warning" class="import-preview-warning" hidden></p>
+                <button id="undo-full-import" class="danger-button" type="button">Restaurar estado anterior…</button>
+              </div>
+            </details>
             <div class="individual-import-controls">
               <label for="individual-import-evaluator">
                 Incorporar carga individual en
@@ -731,7 +739,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260724-8"></script>
-    <script src="collaboration.js?v=20260724-8"></script>
+    <script src="app.js?v=20260724-9"></script>
+    <script src="collaboration.js?v=20260724-9"></script>
   </body>
 </html>

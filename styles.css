@@ -300,6 +300,34 @@ body.auth-locked {
   background: #fff6e9;
 }
 
+.import-recovery-panel {
+  margin-top: 12px;
+  border: 1px solid #d7c9c7;
+  border-radius: 10px;
+  background: #fffafa;
+}
+
+.import-recovery-panel summary {
+  padding: 12px 14px;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.import-recovery-content {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+.import-recovery-content p {
+  margin: 0;
+}
+
+.import-recovery-content .danger-button {
+  justify-self: start;
+}
+
 @media (max-width: 620px) {
   .import-preview-comparison {
     grid-template-columns: 1fr;

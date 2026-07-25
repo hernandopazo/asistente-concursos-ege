@@ -5563,6 +5563,7 @@ function exportMeritExcel() {
 const IMPORT_RECOVERY_DB = "concurso-import-recovery";
 const IMPORT_RECOVERY_STORE = "snapshots";
 const IMPORT_RECOVERY_KEY = "last-full-import";
+const IMPORT_RECOVERY_MAX_AGE_MS = 60 * 60 * 1000;
 let pendingFullImport = null;
 
 function openImportRecoveryDb() {
@@ -5621,11 +5622,33 @@ function fullImportStatus(message, error = false) {
 
 async function refreshImportRecoveryButton() {
   const button = document.querySelector("#undo-full-import");
-  if (!button) return;
+  const panel = document.querySelector("#import-recovery-panel");
+  if (!button || !panel) return;
   try {
-    button.hidden = !(await readImportRecovery());
+    const recovery = await readImportRecovery();
+    const createdAt = recovery?.createdAt ? new Date(recovery.createdAt) : null;
+    const expired = !createdAt || !Number.isFinite(createdAt.getTime())
+      || Date.now() - createdAt.getTime() > IMPORT_RECOVERY_MAX_AGE_MS;
+    if (!recovery || expired) {
+      if (recovery) await clearImportRecovery();
+      panel.hidden = true;
+      return;
+    }
+    const expiresAt = new Date(createdAt.getTime() + IMPORT_RECOVERY_MAX_AGE_MS);
+    document.querySelector("#import-recovery-details").textContent =
+      `Importación: ${recovery.importedFileName || "archivo sin nombre"} · ${createdAt.toLocaleString("es-AR")}. La recuperación vence a las ${expiresAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}.`;
+    const hasLaterChanges = recovery.appliedState
+      ? JSON.stringify(state) !== JSON.stringify(recovery.appliedState)
+      : true;
+    const warning = document.querySelector("#import-recovery-change-warning");
+    warning.hidden = !hasLaterChanges;
+    warning.textContent = hasLaterChanges
+      ? "Se detectaron cambios posteriores a la importación. Restaurar el estado anterior reemplazará esos cambios, aunque antes se exigirá guardarlos en un JSON."
+      : "";
+    button.dataset.hasLaterChanges = String(hasLaterChanges);
+    panel.hidden = false;
   } catch (error) {
-    button.hidden = true;
+    panel.hidden = true;
   }
 }
 
@@ -6339,7 +6362,8 @@ document.querySelector("#export-merit-excel").addEventListener("click", exportMe
 document.querySelector("#export-data").addEventListener("click", exportData);
 document.querySelector("#confirm-full-import")?.addEventListener("click", async (event) => {
   if (!pendingFullImport) return;
-  const importKind = pendingFullImport.kind || "full";
+  const importRequest = pendingFullImport;
+  const importKind = importRequest.kind || "full";
   const button = event.currentTarget;
   button.disabled = true;
   button.textContent = "Protegiendo datos…";
@@ -6360,11 +6384,12 @@ document.querySelector("#confirm-full-import")?.addEventListener("click", async 
     }
     await writeImportRecovery({
       createdAt: new Date().toISOString(),
-      importedFileName: pendingFullImport.fileName,
-      state: currentSnapshot
+      importedFileName: importRequest.fileName,
+      state: currentSnapshot,
+      appliedState: clone(importRequest.state)
     });
-    const importedFileName = pendingFullImport.fileName;
-    state = pendingFullImport.state;
+    const importedFileName = importRequest.fileName;
+    state = importRequest.state;
     pendingFullImport = null;
     document.querySelector("#import-preview-dialog").close();
     render();
@@ -6398,10 +6423,25 @@ document.querySelector("#undo-full-import")?.addEventListener("click", async () 
       fullImportStatus("No hay una importación reciente para deshacer.", true);
       return;
     }
+    const createdAt = new Date(recovery.createdAt);
+    if (!Number.isFinite(createdAt.getTime()) || Date.now() - createdAt.getTime() > IMPORT_RECOVERY_MAX_AGE_MS) {
+      await clearImportRecovery();
+      await refreshImportRecoveryButton();
+      fullImportStatus("La recuperación venció. No se modificó ningún dato.", true);
+      return;
+    }
+    const hasLaterChanges = recovery.appliedState
+      ? JSON.stringify(state) !== JSON.stringify(recovery.appliedState)
+      : true;
     const confirmed = window.confirm(
-      `Se restaurará el estado anterior a la importación de ${recovery.importedFileName || "un JSON"}. Antes se guardará una copia del estado actual. ¿Continuar?`
+      `Se restaurará el estado anterior a la importación de ${recovery.importedFileName || "un archivo"}. ${hasLaterChanges ? "Se detectaron cambios posteriores que dejarán de estar activos. " : ""}Antes se guardará una copia del estado actual. ¿Continuar?`
     );
     if (!confirmed) return;
+    const typedConfirmation = window.prompt('Para confirmar esta restauración, escriba exactamente: RESTAURAR');
+    if (typedConfirmation !== "RESTAURAR") {
+      fullImportStatus("Restauración cancelada: no se ingresó la confirmación requerida.");
+      return;
+    }
     const currentBlob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
     const currentSaved = await saveLocalFile(
       currentBlob,
