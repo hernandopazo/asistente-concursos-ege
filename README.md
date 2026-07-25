@@ -40,6 +40,7 @@ El administrador puede:
 - Elegir si una solapa se trabaja como carga consolidada o como carga independiente por evaluador.
 - Consolidar resultados.
 - Importar respaldos JSON completos o cargas individuales.
+- Recuperar cargas de oposición desde una planilla Excel exportada por el asistente.
 - Descargar respaldos JSON y planillas Excel.
 
 ### Co-administrador
@@ -118,15 +119,37 @@ Los pesos de oposición se normalizan para obtener el máximo acordado en Simple
 
 El botón de limpieza de antecedentes **no borra datos de oposición**. No borra fechas, temas, notas, comentarios ni anotaciones de oposición.
 
+### Respaldo Y Recuperación De Oposición En Excel
+
+En la vista de evaluaciones de Oposición se puede elegir:
+
+- **Evaluador actual:** genera una planilla con la carga del evaluador seleccionado.
+- **Todos los evaluadores:** genera un libro con una hoja de resumen y una hoja por evaluador.
+
+Para disponer de una recuperación paralela al JSON, se recomienda descargar periódicamente la opción **Todos los evaluadores**.
+
+El botón **Recuperar desde Excel** admite las planillas de oposición generadas por el propio asistente. Antes de aplicar una recuperación:
+
+1. Valida la estructura del libro.
+2. Asocia evaluadores y postulantes por sus nombres.
+3. Comprueba que estén presentes todos los criterios actuales.
+4. Rechaza notas que no estén entre 1 y 10.
+5. Muestra una vista previa de las asociaciones y valores encontrados.
+6. Exige guardar un JSON del estado actual.
+
+La recuperación desde Excel modifica únicamente fechas, temas, notas, comentarios, anotaciones y abstenciones de Oposición. No reemplaza postulantes, evaluadores, criterios, pesos, antecedentes ni configuración administrativa. Los totales y promedios incluidos en la planilla no se importan: la aplicación vuelve a calcularlos.
+
 ## Resultados Y Orden De Mérito
 
 Resultados muestra la suma horizontal de las secciones del concurso, siguiendo el orden de los rubros definidos en Puntajes.
 
 Orden de mérito permite ver el ranking según el cargo seleccionado. Ambas secciones pueden exportarse a Excel.
 
-## Respaldo JSON
+## Guardado De JSON Y Excel
 
-El botón **Exportar JSON** descarga una copia completa del concurso en el estado actual del navegador.
+El botón **Exportar JSON** guarda una copia completa del concurso en el estado actual del navegador.
+
+En navegadores compatibles se abre el cuadro **Guardar como…**, que permite elegir la ubicación, crear una carpeta y confirmar el nombre. Las descargas de Excel utilizan el mismo mecanismo y el navegador intenta recordar la última carpeta utilizada. Si el navegador no admite esta función, los archivos se guardan mediante la descarga habitual.
 
 Conviene exportar JSON:
 
@@ -158,7 +181,32 @@ En Respaldo existen dos caminos diferentes:
 
 ### Importar JSON completo
 
-Restaura una copia completa del concurso. Es una acción amplia y puede reemplazar el estado actual.
+Restaura una copia completa del concurso. Es una acción amplia, por lo que utiliza un flujo protegido:
+
+1. Lee y valida el JSON sin modificar el concurso.
+2. Comprueba postulantes, evaluadores, rubros y estructura general.
+3. Muestra una comparación entre el concurso actual y el contenido del archivo.
+4. Advierte diferencias de identidades o referencias administrativas.
+5. Exige guardar un JSON del estado actual.
+6. Crea una recuperación interna.
+7. Recién después de confirmar reemplaza y sincroniza los datos.
+
+Si la validación falla, se cancela el guardado del respaldo o no puede crearse la recuperación interna, el concurso no se modifica.
+
+### Recuperación avanzada después de importar
+
+Después de aplicar una importación completa o una recuperación de Oposición desde Excel, aparece la sección cerrada **Recuperación avanzada**.
+
+La opción **Restaurar estado anterior…**:
+
+- Informa qué archivo se importó y a qué hora.
+- Está disponible durante una hora.
+- Advierte si se detectaron cambios posteriores.
+- Pide una confirmación inicial.
+- Exige escribir exactamente `RESTAURAR`.
+- Obliga a guardar un JSON del estado actual antes de restaurar.
+
+Restaurar vuelve al estado inmediatamente anterior a la importación. Si se cargaron datos nuevos después, esos cambios dejarán de estar activos, aunque quedarán guardados en el JSON exigido antes de restaurar. Por este motivo debe utilizarse sólo para revertir una importación reciente que resultó incorrecta.
 
 ### Importar JSON de un evaluador
 
@@ -176,6 +224,19 @@ Esta acción:
 - No toca cargas de otros evaluadores.
 
 Si el JSON no coincide con todos los postulantes actuales, la app avisa antes de continuar.
+
+## Estrategia Recomendada De Respaldo
+
+Para reducir el riesgo operativo:
+
+1. Exportar un JSON completo antes de cada jornada o cambio importante.
+2. En Oposición, descargar periódicamente el Excel de **Todos los evaluadores**.
+3. Conservar los archivos con su fecha y hora sin sobrescribir versiones anteriores.
+4. Revisar siempre la vista previa antes de importar.
+5. No continuar cargando datos mientras una importación está pendiente de revisión.
+6. Usar **Restaurar estado anterior…** únicamente inmediatamente después de detectar una importación incorrecta.
+
+El JSON es la recuperación integral. El Excel de Oposición es una vía paralela y limitada a esa solapa.
 
 ## Limpieza De Anotaciones
 
