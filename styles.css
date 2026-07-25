@@ -228,6 +228,33 @@ body.auth-locked {
   line-height: 1.4;
 }
 
+.backup-folder-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid #c9dbe3;
+  border-radius: 10px;
+  background: #f7fbfc;
+}
+
+.backup-folder-panel p {
+  margin: 4px 0 0;
+}
+
+.backup-folder-panel .inline-status.is-connected {
+  color: var(--success, #2f7551);
+}
+
+@media (max-width: 680px) {
+  .backup-folder-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .fixed-competition-name {
   display: block;
   padding: 14px 16px;

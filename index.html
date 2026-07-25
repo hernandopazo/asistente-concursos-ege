@@ -176,13 +176,21 @@
             <div class="setup-section-heading">
               <div>
                 <h3>Respaldo</h3>
-                <p>Descargue o recupere una copia completa del concurso.</p>
+                <p>Guarde o recupere una copia completa del concurso en una carpeta de su computadora.</p>
               </div>
             </div>
+            <div class="backup-folder-panel">
+              <div>
+                <strong>Carpeta local de respaldos</strong>
+                <p id="backup-folder-status" class="inline-status" aria-live="polite">Todavía no se eligió una carpeta.</p>
+              </div>
+              <button id="choose-backup-folder" class="primary-button" type="button">Elegir o crear carpeta</button>
+            </div>
             <div class="header-actions">
-              <button id="export-data" class="secondary-button" type="button">Exportar JSON</button>
+              <button id="export-data" class="secondary-button" type="button">Exportar respaldo</button>
+              <button id="import-data-from-folder" class="secondary-button" type="button">Importar desde carpeta</button>
               <label class="secondary-button file-button">
-                Importar JSON completo
+                Importar otro archivo
                 <input id="import-data" type="file" accept="application/json" />
               </label>
             </div>
@@ -198,7 +206,7 @@
             </div>
             <p id="individual-import-status" class="inline-status" aria-live="polite"></p>
             <p class="backup-note">
-              Si durante la evaluación se corta internet o falla la conexión, cada evaluador puede seguir trabajando en su navegador y, al finalizar, descargar un JSON con el botón Exportar JSON. Luego el administrador podrá incorporar esa carga individual desde el archivo exportado.
+              La carpeta queda vinculada sólo en este dispositivo y el navegador pedirá permiso cuando sea necesario. Cada exportación se guarda con fecha y hora. Si el navegador no admite carpetas locales, se utilizará la descarga habitual.
             </p>
           </section>
         </div>
