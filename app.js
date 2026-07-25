@@ -5560,13 +5560,181 @@ function exportMeritExcel() {
   exportWorkbook(rows, "Orden de mérito", `orden-merito-${meritCargo}`, [12, 42, 18]);
 }
 
-function importData(file) {
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    state = seedEvaluations(migrateState(JSON.parse(reader.result)));
-    render();
+const IMPORT_RECOVERY_DB = "concurso-import-recovery";
+const IMPORT_RECOVERY_STORE = "snapshots";
+const IMPORT_RECOVERY_KEY = "last-full-import";
+let pendingFullImport = null;
+
+function openImportRecoveryDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IMPORT_RECOVERY_DB, 1);
+    request.addEventListener("upgradeneeded", () => {
+      if (!request.result.objectStoreNames.contains(IMPORT_RECOVERY_STORE)) {
+        request.result.createObjectStore(IMPORT_RECOVERY_STORE);
+      }
+    });
+    request.addEventListener("success", () => resolve(request.result));
+    request.addEventListener("error", () => reject(request.error));
   });
-  reader.readAsText(file);
+}
+
+async function writeImportRecovery(snapshot) {
+  const db = await openImportRecoveryDb();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(IMPORT_RECOVERY_STORE, "readwrite");
+    transaction.objectStore(IMPORT_RECOVERY_STORE).put(snapshot, IMPORT_RECOVERY_KEY);
+    transaction.addEventListener("complete", resolve);
+    transaction.addEventListener("error", () => reject(transaction.error));
+  });
+  db.close();
+}
+
+async function readImportRecovery() {
+  const db = await openImportRecoveryDb();
+  const snapshot = await new Promise((resolve, reject) => {
+    const transaction = db.transaction(IMPORT_RECOVERY_STORE, "readonly");
+    const request = transaction.objectStore(IMPORT_RECOVERY_STORE).get(IMPORT_RECOVERY_KEY);
+    request.addEventListener("success", () => resolve(request.result || null));
+    request.addEventListener("error", () => reject(request.error));
+  });
+  db.close();
+  return snapshot;
+}
+
+async function clearImportRecovery() {
+  const db = await openImportRecoveryDb();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(IMPORT_RECOVERY_STORE, "readwrite");
+    transaction.objectStore(IMPORT_RECOVERY_STORE).delete(IMPORT_RECOVERY_KEY);
+    transaction.addEventListener("complete", resolve);
+    transaction.addEventListener("error", () => reject(transaction.error));
+  });
+  db.close();
+}
+
+function fullImportStatus(message, error = false) {
+  const status = document.querySelector("#full-import-status");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("error", error);
+}
+
+async function refreshImportRecoveryButton() {
+  const button = document.querySelector("#undo-full-import");
+  if (!button) return;
+  try {
+    button.hidden = !(await readImportRecovery());
+  } catch (error) {
+    button.hidden = true;
+  }
+}
+
+function validateFullImportSource(source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new Error("El archivo no contiene un respaldo válido del concurso.");
+  }
+  const requiredArrays = [
+    ["postulantes", source.postulantes],
+    ["rubros", source.rubros],
+    ["evaluadores", source.oposicion?.evaluadores],
+    ["criterios de oposición", source.oposicion?.criterios]
+  ];
+  requiredArrays.forEach(([label, value]) => {
+    if (!Array.isArray(value)) throw new Error(`El respaldo no contiene ${label} válidos.`);
+  });
+  const requiredModules = [
+    "antecedentesDocentes",
+    "antecedentesCientificos",
+    "antecedentesExtension",
+    "antecedentesProfesionales",
+    "otrosAntecedentes"
+  ];
+  requiredModules.forEach((moduleKey) => {
+    if (!source[moduleKey] || typeof source[moduleKey] !== "object") {
+      throw new Error(`El respaldo no contiene el módulo ${moduleKey}.`);
+    }
+  });
+  const candidateIds = source.postulantes.map((candidate) => candidate?.id).filter(Boolean);
+  if (candidateIds.length !== source.postulantes.length || new Set(candidateIds).size !== candidateIds.length) {
+    throw new Error("El respaldo contiene postulantes sin identificador o identificadores repetidos.");
+  }
+  const evaluatorIds = source.oposicion.evaluadores.map((evaluator) => evaluator?.id).filter(Boolean);
+  if (evaluatorIds.length !== source.oposicion.evaluadores.length || new Set(evaluatorIds).size !== evaluatorIds.length) {
+    throw new Error("El respaldo contiene evaluadores sin identificador o identificadores repetidos.");
+  }
+}
+
+function importSummary(snapshot) {
+  return {
+    postulantes: snapshot.postulantes?.length || 0,
+    evaluadores: snapshot.oposicion?.evaluadores?.length || 0,
+    rubros: snapshot.rubros?.length || 0,
+    referencias: String(snapshot.administrativeDetails || "").trim() || "Sin referencias administrativas"
+  };
+}
+
+function importSummaryHtml(title, summary) {
+  return `
+    <section class="import-preview-summary">
+      <h3>${escapeHtml(title)}</h3>
+      <ul>
+        <li>${summary.postulantes} postulantes</li>
+        <li>${summary.evaluadores} evaluadores</li>
+        <li>${summary.rubros} rubros</li>
+        <li>${escapeHtml(summary.referencias)}</li>
+      </ul>
+    </section>
+  `;
+}
+
+function fullImportWarnings(importedState) {
+  const warnings = [];
+  const currentCandidateNames = new Set(state.postulantes.map((candidate) => normalizedName(`${candidate.apellidos} ${candidate.nombres}`)));
+  const importedCandidateNames = new Set(importedState.postulantes.map((candidate) => normalizedName(`${candidate.apellidos} ${candidate.nombres}`)));
+  const sharedCandidates = [...currentCandidateNames].filter((name) => importedCandidateNames.has(name)).length;
+  if (state.postulantes.length && sharedCandidates !== state.postulantes.length) {
+    warnings.push(`Coinciden ${sharedCandidates} de ${state.postulantes.length} postulantes actuales.`);
+  }
+  const currentEvaluators = state.oposicion.evaluadores.map((evaluator) => normalizedName(evaluator.nombre));
+  const importedEvaluators = new Set(importedState.oposicion.evaluadores.map((evaluator) => normalizedName(evaluator.nombre)));
+  const sharedEvaluators = currentEvaluators.filter((name) => importedEvaluators.has(name)).length;
+  if (currentEvaluators.length && sharedEvaluators !== currentEvaluators.length) {
+    warnings.push(`Coinciden ${sharedEvaluators} de ${currentEvaluators.length} evaluadores actuales.`);
+  }
+  if (String(state.administrativeDetails || "").trim() !== String(importedState.administrativeDetails || "").trim()) {
+    warnings.push("Las referencias administrativas son diferentes.");
+  }
+  return warnings;
+}
+
+async function importData(file) {
+  const role = window.collaboration?.currentRole?.();
+  if (role && role !== "admin") {
+    fullImportStatus("Sólo un administrador puede importar un concurso completo.", true);
+    return;
+  }
+  try {
+    const source = JSON.parse(await file.text());
+    validateFullImportSource(source);
+    const importedState = seedEvaluations(migrateState(source));
+    validateFullImportSource(importedState);
+    pendingFullImport = { fileName: file.name, state: importedState };
+    const currentSummary = importSummary(state);
+    const importedSummary = importSummary(importedState);
+    document.querySelector("#import-preview-file").textContent = `Archivo seleccionado: ${file.name}`;
+    document.querySelector("#import-preview-comparison").innerHTML =
+      importSummaryHtml("Concurso actual", currentSummary) +
+      importSummaryHtml("Contenido del JSON", importedSummary);
+    const warnings = fullImportWarnings(importedState);
+    document.querySelector("#import-preview-warnings").innerHTML = warnings.length
+      ? warnings.map((warning) => `<p class="import-preview-warning">${escapeHtml(warning)}</p>`).join("")
+      : '<p class="inline-status">La estructura y las identidades principales son compatibles.</p>';
+    fullImportStatus("JSON validado. Revise la comparación antes de aplicarlo.");
+    document.querySelector("#import-preview-dialog").showModal();
+  } catch (error) {
+    pendingFullImport = null;
+    fullImportStatus(error.message || "No se pudo validar el archivo JSON.", true);
+  }
 }
 
 function renderIndividualImportEvaluatorOptions() {
@@ -5991,6 +6159,81 @@ document.querySelector("#export-oposicion-excel")?.addEventListener("click", exp
 document.querySelector("#export-results-excel").addEventListener("click", exportResultsExcel);
 document.querySelector("#export-merit-excel").addEventListener("click", exportMeritExcel);
 document.querySelector("#export-data").addEventListener("click", exportData);
+document.querySelector("#confirm-full-import")?.addEventListener("click", async (event) => {
+  if (!pendingFullImport) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "Protegiendo datos…";
+  try {
+    const currentSnapshot = clone(state);
+    const backupFilename = `antes-de-importar-${fileTimestamp()}.json`;
+    const backupBlob = new Blob([JSON.stringify(currentSnapshot, null, 2)], { type: "application/json" });
+    const backupSaved = await saveLocalFile(
+      backupBlob,
+      backupFilename,
+      "Respaldo previo a la importación",
+      "application/json",
+      ".json"
+    );
+    if (!backupSaved) {
+      fullImportStatus("Importación cancelada: primero debe guardar el respaldo del estado actual.", true);
+      return;
+    }
+    await writeImportRecovery({
+      createdAt: new Date().toISOString(),
+      importedFileName: pendingFullImport.fileName,
+      state: currentSnapshot
+    });
+    const importedFileName = pendingFullImport.fileName;
+    state = pendingFullImport.state;
+    pendingFullImport = null;
+    document.querySelector("#import-preview-dialog").close();
+    render();
+    await refreshImportRecoveryButton();
+    fullImportStatus(`Importación aplicada desde ${importedFileName}. Puede deshacerla mientras conserva la copia de recuperación.`);
+  } catch (error) {
+    fullImportStatus("No se aplicó la importación porque no pudo crearse una recuperación segura.", true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Guardar respaldo y aplicar";
+  }
+});
+document.querySelector("#import-preview-dialog")?.addEventListener("close", () => {
+  pendingFullImport = null;
+});
+document.querySelector("#undo-full-import")?.addEventListener("click", async () => {
+  try {
+    const recovery = await readImportRecovery();
+    if (!recovery?.state) {
+      await refreshImportRecoveryButton();
+      fullImportStatus("No hay una importación reciente para deshacer.", true);
+      return;
+    }
+    const confirmed = window.confirm(
+      `Se restaurará el estado anterior a la importación de ${recovery.importedFileName || "un JSON"}. Antes se guardará una copia del estado actual. ¿Continuar?`
+    );
+    if (!confirmed) return;
+    const currentBlob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const currentSaved = await saveLocalFile(
+      currentBlob,
+      `antes-de-deshacer-importacion-${fileTimestamp()}.json`,
+      "Respaldo previo a deshacer",
+      "application/json",
+      ".json"
+    );
+    if (!currentSaved) {
+      fullImportStatus("No se deshizo la importación porque se canceló el respaldo previo.", true);
+      return;
+    }
+    state = seedEvaluations(migrateState(clone(recovery.state)));
+    render();
+    await clearImportRecovery();
+    await refreshImportRecoveryButton();
+    fullImportStatus("Se restauró correctamente el estado anterior a la importación.");
+  } catch (error) {
+    fullImportStatus("No se pudo restaurar el estado anterior. No se modificaron los datos actuales.", true);
+  }
+});
 document.querySelector("#import-data").addEventListener("change", (event) => {
   if (event.target.files[0]) importData(event.target.files[0]);
   event.target.value = "";
@@ -6009,3 +6252,4 @@ document.querySelector("#import-postulantes").addEventListener("change", (event)
 });
 
 render();
+refreshImportRecoveryButton();

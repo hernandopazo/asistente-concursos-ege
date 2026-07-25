@@ -185,7 +185,9 @@
                 Importar JSON completo
                 <input id="import-data" type="file" accept="application/json" />
               </label>
+              <button id="undo-full-import" class="secondary-button" type="button" hidden>Deshacer última importación</button>
             </div>
+            <p id="full-import-status" class="inline-status" aria-live="polite"></p>
             <div class="individual-import-controls">
               <label for="individual-import-evaluator">
                 Incorporar carga individual en
@@ -699,10 +701,32 @@
 
     <div id="calculation-tooltip" class="calculation-tooltip" role="tooltip"></div>
 
+    <dialog id="import-preview-dialog" class="import-preview-dialog">
+      <form method="dialog" class="import-preview-card">
+        <div class="import-preview-heading">
+          <div>
+            <p class="department-title">Importación protegida</p>
+            <h2>Revisar antes de reemplazar datos</h2>
+          </div>
+          <button class="secondary-button" value="cancel" type="submit">Cerrar</button>
+        </div>
+        <p id="import-preview-file" class="import-preview-file"></p>
+        <div id="import-preview-comparison" class="import-preview-comparison"></div>
+        <div id="import-preview-warnings" class="import-preview-warnings"></div>
+        <p class="backup-note">
+          Antes de aplicar la importación se exigirá guardar un JSON del estado actual. Además, quedará disponible “Deshacer última importación”.
+        </p>
+        <div class="import-preview-actions">
+          <button class="secondary-button" value="cancel" type="submit">Cancelar</button>
+          <button id="confirm-full-import" class="primary-button" value="default" type="button">Guardar respaldo y aplicar</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260724-6"></script>
-    <script src="collaboration.js?v=20260724-6"></script>
+    <script src="app.js?v=20260724-7"></script>
+    <script src="collaboration.js?v=20260724-7"></script>
   </body>
 </html>
