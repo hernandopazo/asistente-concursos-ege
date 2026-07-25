@@ -5230,7 +5230,7 @@ function fileTimestamp() {
 
 let lastJsonBackupAt = null;
 
-function downloadJsonBackup(blob, filename) {
+function downloadLocalFile(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -5239,29 +5239,34 @@ function downloadJsonBackup(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-async function exportData() {
-  const filename = `concurso-jtp-${fileTimestamp()}.json`;
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+async function saveLocalFile(blob, filename, description, mimeType, extension) {
   if ("showSaveFilePicker" in window) {
     try {
       const fileHandle = await window.showSaveFilePicker({
-        id: "concurso-json-backup",
+        id: "concurso-export-file",
         suggestedName: filename,
         types: [{
-          description: "Respaldo JSON del concurso",
-          accept: { "application/json": [".json"] }
+          description,
+          accept: { [mimeType]: [extension] }
         }]
       });
       const writable = await fileHandle.createWritable();
       await writable.write(blob);
       await writable.close();
+      return true;
     } catch (error) {
-      if (error?.name === "AbortError") return;
-      downloadJsonBackup(blob, filename);
+      if (error?.name === "AbortError") return false;
     }
-  } else {
-    downloadJsonBackup(blob, filename);
   }
+  downloadLocalFile(blob, filename);
+  return true;
+}
+
+async function exportData() {
+  const filename = `concurso-jtp-${fileTimestamp()}.json`;
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const saved = await saveLocalFile(blob, filename, "Respaldo JSON del concurso", "application/json", ".json");
+  if (!saved) return;
   lastJsonBackupAt = new Date();
 }
 
@@ -5281,18 +5286,32 @@ function appendWorkbookSheet(workbook, rows, sheetName, columnWidths) {
   XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(sheetName));
 }
 
-function exportWorkbook(rows, sheetName, filename, columnWidths) {
+async function saveWorkbook(workbook, filename) {
+  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
+  await saveLocalFile(
+    blob,
+    filename,
+    "Planilla Excel del concurso",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xlsx"
+  );
+}
+
+async function exportWorkbook(rows, sheetName, filename, columnWidths) {
   if (typeof XLSX === "undefined") return;
   const workbook = XLSX.utils.book_new();
   appendWorkbookSheet(workbook, rows, sheetName, columnWidths);
-  XLSX.writeFile(workbook, `${filename}-${fileTimestamp()}.xlsx`, { bookType: "xlsx" });
+  await saveWorkbook(workbook, `${filename}-${fileTimestamp()}.xlsx`);
 }
 
-function exportMultiSheetWorkbook(sheets, filename) {
+async function exportMultiSheetWorkbook(sheets, filename) {
   if (typeof XLSX === "undefined") return;
   const workbook = XLSX.utils.book_new();
   sheets.forEach((sheet) => appendWorkbookSheet(workbook, sheet.rows, sheet.name, sheet.columnWidths));
-  XLSX.writeFile(workbook, `${filename}-${fileTimestamp()}.xlsx`, { bookType: "xlsx" });
+  await saveWorkbook(workbook, `${filename}-${fileTimestamp()}.xlsx`);
 }
 
 
