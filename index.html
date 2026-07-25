@@ -427,8 +427,13 @@
                 <option value="todos">Todos los evaluadores</option>
               </select>
               <button id="export-oposicion-excel" class="secondary-button" type="button">Descargar Excel</button>
+              <label class="secondary-button file-button">
+                Recuperar desde Excel
+                <input id="import-oposicion-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
+              </label>
             </div>
           </div>
+          <p id="import-oposicion-status" class="inline-status" aria-live="polite"></p>
           <div id="evaluador-tabs" class="evaluator-tabs" role="tablist" aria-label="Evaluadores"></div>
           <div id="evaluadores-list"></div>
         </section>
@@ -706,7 +711,7 @@
         <div class="import-preview-heading">
           <div>
             <p class="department-title">Importación protegida</p>
-            <h2>Revisar antes de reemplazar datos</h2>
+            <h2>Revisar antes de importar datos</h2>
           </div>
           <button class="secondary-button" value="cancel" type="submit">Cerrar</button>
         </div>
@@ -726,7 +731,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260724-7"></script>
-    <script src="collaboration.js?v=20260724-7"></script>
+    <script src="app.js?v=20260724-8"></script>
+    <script src="collaboration.js?v=20260724-8"></script>
   </body>
 </html>

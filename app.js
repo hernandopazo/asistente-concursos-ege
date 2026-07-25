@@ -5737,6 +5737,184 @@ async function importData(file) {
   }
 }
 
+function oppositionImportStatus(message, error = false) {
+  const status = document.querySelector("#import-oposicion-status");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("error", error);
+}
+
+function excelCellText(value) {
+  return String(value ?? "").trim();
+}
+
+function evaluatorFromOppositionSheet(rows, sheetName) {
+  const viewRow = rows.find((row) => normalizedName(row?.[0]) === "vista exportada");
+  const viewLabel = excelCellText(viewRow?.[1]);
+  const sheetLabel = String(sheetName || "").replace(/^\d+\s+/, "").trim();
+  const labels = [viewLabel, sheetLabel].map(normalizedName).filter(Boolean);
+  return state.oposicion.evaluadores.find((evaluator) => labels.includes(normalizedName(evaluator.nombre))) || null;
+}
+
+function oppositionCriterionFromExcelLabel(label) {
+  const criterionLabel = normalizedName(String(label || "").split("·")[0]);
+  return state.oposicion.criterios.find((criterion) => normalizedName(criterion.nombre) === criterionLabel) || null;
+}
+
+function oppositionCandidateFromExcelLabel(label) {
+  const candidateLabel = normalizedName(label);
+  const matches = state.postulantes.filter((candidate) => {
+    return normalizedName(candidatePlainName(candidate)) === candidateLabel
+      || normalizedName(`${candidate.apellidos} ${candidate.nombres}`) === candidateLabel;
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function oppositionExcelNumber(value, criterionName, candidateName) {
+  const text = excelCellText(value);
+  if (!text) return "";
+  const number = Number(text.replace(",", "."));
+  if (!Number.isFinite(number) || number < 1 || number > 10) {
+    throw new Error(`Nota inválida para ${criterionName} / ${candidateName}: "${text}". Debe estar entre 1 y 10.`);
+  }
+  return number;
+}
+
+function parseOppositionSheet(rows, sheetName, stagedState) {
+  const headerIndex = rows.findIndex((row) => normalizedName(row?.[0]) === "campo / criterio");
+  if (headerIndex < 0) return null;
+  const evaluator = evaluatorFromOppositionSheet(rows, sheetName);
+  if (!evaluator) {
+    throw new Error(`No se pudo asociar la hoja "${sheetName}" con un evaluador actual.`);
+  }
+  const stagedEvaluator = stagedState.oposicion.evaluadores.find((item) => item.id === evaluator.id);
+  const header = rows[headerIndex];
+  const rowMap = new Map(rows.slice(headerIndex + 1).map((row) => [normalizedName(row?.[0]), row]));
+  const criterionRows = state.oposicion.criterios.map((criterion) => {
+    const row = rows.slice(headerIndex + 1).find((candidateRow) => oppositionCriterionFromExcelLabel(candidateRow?.[0])?.id === criterion.id);
+    if (!row) throw new Error(`La hoja "${sheetName}" no contiene el criterio "${criterion.nombre}".`);
+    return { criterion, row };
+  });
+  let matchedCandidates = 0;
+  let importedValues = 0;
+  for (let columnIndex = 1; columnIndex < header.length; columnIndex += 1) {
+    const candidate = oppositionCandidateFromExcelLabel(header[columnIndex]);
+    if (!candidate) {
+      throw new Error(`No se pudo asociar el postulante "${excelCellText(header[columnIndex])}" de la hoja "${sheetName}".`);
+    }
+    matchedCandidates += 1;
+    const cells = [
+      rowMap.get("fecha")?.[columnIndex],
+      rowMap.get("tema")?.[columnIndex],
+      rowMap.get("comentarios")?.[columnIndex],
+      ...criterionRows.map(({ row }) => row[columnIndex])
+    ];
+    const abstained = cells.some((value) => normalizedName(value) === "abstencion");
+    const stagedCandidate = stagedState.postulantes.find((item) => item.id === candidate.id);
+    stagedCandidate.abstencionesOposicion ||= {};
+    if (abstained) {
+      stagedCandidate.abstencionesOposicion[evaluator.id] = true;
+      importedValues += 1;
+      continue;
+    }
+    delete stagedCandidate.abstencionesOposicion[evaluator.id];
+    const evaluation = stagedEvaluator.evaluaciones[candidate.id];
+    evaluation.fecha = excelCellText(rowMap.get("fecha")?.[columnIndex]);
+    evaluation.tema = excelCellText(rowMap.get("tema")?.[columnIndex]);
+    evaluation.comentarios = excelCellText(rowMap.get("comentarios")?.[columnIndex]);
+    criterionRows.forEach(({ criterion, row }) => {
+      const value = oppositionExcelNumber(row[columnIndex], criterion.nombre, candidatePlainName(candidate));
+      evaluation.notas[criterion.id] = value;
+      if (value !== "") importedValues += 1;
+    });
+    if (evaluation.fecha) importedValues += 1;
+    if (evaluation.tema) importedValues += 1;
+    if (evaluation.comentarios) importedValues += 1;
+  }
+  const annotationsRow = rowMap.get("anotaciones");
+  if (annotationsRow) stagedEvaluator.anotaciones = excelCellText(annotationsRow[1]);
+  return {
+    evaluatorName: evaluator.nombre,
+    matchedCandidates,
+    importedValues
+  };
+}
+
+async function importOppositionExcel(file) {
+  const role = window.collaboration?.currentRole?.();
+  if (role && role !== "admin") {
+    oppositionImportStatus("Sólo un administrador puede recuperar la oposición desde Excel.", true);
+    return;
+  }
+  if (typeof XLSX === "undefined") {
+    oppositionImportStatus("No está disponible el lector de Excel.", true);
+    return;
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    oppositionImportStatus("El archivo supera el límite de 15 MB.", true);
+    return;
+  }
+  try {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+    const stagedState = seedEvaluations(clone(state));
+    const sheetResults = [];
+    workbook.SheetNames.forEach((sheetName) => {
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+        header: 1,
+        defval: "",
+        raw: false
+      });
+      const result = parseOppositionSheet(rows, sheetName, stagedState);
+      if (result) sheetResults.push(result);
+    });
+    if (!sheetResults.length) {
+      throw new Error("No se encontró ninguna hoja de oposición exportada por este asistente.");
+    }
+    const duplicatedEvaluators = sheetResults
+      .map((result) => normalizedName(result.evaluatorName))
+      .filter((name, index, names) => names.indexOf(name) !== index);
+    if (duplicatedEvaluators.length) {
+      throw new Error("El Excel contiene más de una hoja para el mismo evaluador.");
+    }
+    pendingFullImport = {
+      fileName: file.name,
+      state: stagedState,
+      kind: "opposition"
+    };
+    const totalCandidates = sheetResults.reduce((sum, result) => sum + result.matchedCandidates, 0);
+    const totalValues = sheetResults.reduce((sum, result) => sum + result.importedValues, 0);
+    document.querySelector("#import-preview-file").textContent = `Archivo seleccionado: ${file.name}`;
+    document.querySelector("#import-preview-comparison").innerHTML = `
+      <section class="import-preview-summary">
+        <h3>Se conservará sin cambios</h3>
+        <ul>
+          <li>Postulantes y evaluadores</li>
+          <li>Criterios y pesos</li>
+          <li>Todos los antecedentes</li>
+          <li>Configuración administrativa</li>
+        </ul>
+      </section>
+      <section class="import-preview-summary">
+        <h3>Se recuperará del Excel</h3>
+        <ul>
+          <li>${sheetResults.length} evaluadores</li>
+          <li>${totalCandidates} asociaciones con postulantes</li>
+          <li>${totalValues} valores cargados o abstenciones</li>
+          <li>Fechas, temas, notas y comentarios</li>
+        </ul>
+      </section>
+    `;
+    document.querySelector("#import-preview-warnings").innerHTML = sheetResults
+      .map((result) => `<p class="inline-status">${escapeHtml(result.evaluatorName)}: ${result.matchedCandidates} postulantes asociados.</p>`)
+      .join("");
+    oppositionImportStatus("Excel validado. Revise el resumen antes de aplicar la recuperación.");
+    document.querySelector("#import-preview-dialog").showModal();
+  } catch (error) {
+    pendingFullImport = null;
+    oppositionImportStatus(error.message || "No se pudo validar el Excel de oposición.", true);
+  }
+}
+
 function renderIndividualImportEvaluatorOptions() {
   const select = document.querySelector("#individual-import-evaluator");
   if (!select) return;
@@ -6161,6 +6339,7 @@ document.querySelector("#export-merit-excel").addEventListener("click", exportMe
 document.querySelector("#export-data").addEventListener("click", exportData);
 document.querySelector("#confirm-full-import")?.addEventListener("click", async (event) => {
   if (!pendingFullImport) return;
+  const importKind = pendingFullImport.kind || "full";
   const button = event.currentTarget;
   button.disabled = true;
   button.textContent = "Protegiendo datos…";
@@ -6190,9 +6369,19 @@ document.querySelector("#confirm-full-import")?.addEventListener("click", async 
     document.querySelector("#import-preview-dialog").close();
     render();
     await refreshImportRecoveryButton();
-    fullImportStatus(`Importación aplicada desde ${importedFileName}. Puede deshacerla mientras conserva la copia de recuperación.`);
+    const successMessage = `Importación aplicada desde ${importedFileName}. Puede deshacerla mientras conserva la copia de recuperación.`;
+    if (importKind === "opposition") {
+      oppositionImportStatus(successMessage);
+    } else {
+      fullImportStatus(successMessage);
+    }
   } catch (error) {
-    fullImportStatus("No se aplicó la importación porque no pudo crearse una recuperación segura.", true);
+    const errorMessage = "No se aplicó la importación porque no pudo crearse una recuperación segura.";
+    if (importKind === "opposition") {
+      oppositionImportStatus(errorMessage, true);
+    } else {
+      fullImportStatus(errorMessage, true);
+    }
   } finally {
     button.disabled = false;
     button.textContent = "Guardar respaldo y aplicar";
@@ -6236,6 +6425,10 @@ document.querySelector("#undo-full-import")?.addEventListener("click", async () 
 });
 document.querySelector("#import-data").addEventListener("change", (event) => {
   if (event.target.files[0]) importData(event.target.files[0]);
+  event.target.value = "";
+});
+document.querySelector("#import-oposicion-excel")?.addEventListener("change", (event) => {
+  if (event.target.files[0]) importOppositionExcel(event.target.files[0]);
   event.target.value = "";
 });
 document.querySelector("#import-individual-data")?.addEventListener("change", (event) => {
