@@ -5230,98 +5230,6 @@ function fileTimestamp() {
 
 let lastJsonBackupAt = null;
 
-const BACKUP_DIRECTORY_DB = "concurso-local-backup";
-const BACKUP_DIRECTORY_STORE = "handles";
-const BACKUP_DIRECTORY_KEY = "directory";
-let backupDirectoryHandle = null;
-
-function backupFolderStatus(message, connected = false, error = false) {
-  const status = document.querySelector("#backup-folder-status");
-  if (!status) return;
-  status.textContent = message;
-  status.classList.toggle("is-connected", connected);
-  status.classList.toggle("error", error);
-}
-
-function openBackupDirectoryDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(BACKUP_DIRECTORY_DB, 1);
-    request.addEventListener("upgradeneeded", () => {
-      if (!request.result.objectStoreNames.contains(BACKUP_DIRECTORY_STORE)) {
-        request.result.createObjectStore(BACKUP_DIRECTORY_STORE);
-      }
-    });
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error));
-  });
-}
-
-async function rememberBackupDirectory(handle) {
-  const db = await openBackupDirectoryDb();
-  await new Promise((resolve, reject) => {
-    const transaction = db.transaction(BACKUP_DIRECTORY_STORE, "readwrite");
-    transaction.objectStore(BACKUP_DIRECTORY_STORE).put(handle, BACKUP_DIRECTORY_KEY);
-    transaction.addEventListener("complete", resolve);
-    transaction.addEventListener("error", () => reject(transaction.error));
-  });
-  db.close();
-}
-
-async function restoreBackupDirectory() {
-  if (!("showDirectoryPicker" in window)) {
-    backupFolderStatus("Este navegador no permite vincular carpetas. Exportar JSON guardará el archivo mediante una descarga.", false);
-    return;
-  }
-  document.querySelector("#choose-backup-folder")?.removeAttribute("hidden");
-  document.querySelector("#import-data-from-folder")?.removeAttribute("hidden");
-  try {
-    const db = await openBackupDirectoryDb();
-    backupDirectoryHandle = await new Promise((resolve, reject) => {
-      const transaction = db.transaction(BACKUP_DIRECTORY_STORE, "readonly");
-      const request = transaction.objectStore(BACKUP_DIRECTORY_STORE).get(BACKUP_DIRECTORY_KEY);
-      request.addEventListener("success", () => resolve(request.result || null));
-      request.addEventListener("error", () => reject(request.error));
-    });
-    db.close();
-    if (backupDirectoryHandle) {
-      backupFolderStatus(`Carpeta recordada: ${backupDirectoryHandle.name}. Se solicitará permiso al usarla.`, true);
-    }
-  } catch (error) {
-    backupFolderStatus("No se pudo recuperar la carpeta anterior. Puede elegirla nuevamente.", false, true);
-  }
-}
-
-async function ensureBackupDirectoryPermission(handle) {
-  if (!handle) return false;
-  const options = { mode: "readwrite" };
-  if ((await handle.queryPermission(options)) === "granted") return true;
-  return (await handle.requestPermission(options)) === "granted";
-}
-
-async function chooseBackupDirectory() {
-  try {
-    const handle = await window.showDirectoryPicker({ mode: "readwrite", id: "concurso-backups" });
-    if (!(await ensureBackupDirectoryPermission(handle))) {
-      backupFolderStatus("No se concedió permiso para usar la carpeta.", false, true);
-      return null;
-    }
-    backupDirectoryHandle = handle;
-    try {
-      await rememberBackupDirectory(handle);
-    } catch (error) {
-      // Algunos navegadores permiten usar la carpeta durante la sesión,
-      // pero no conservar el permiso para la próxima visita.
-    }
-    backupFolderStatus(`Carpeta vinculada: ${handle.name}`, true);
-    return handle;
-  } catch (error) {
-    if (error?.name !== "AbortError") {
-      backupFolderStatus("No se pudo vincular la carpeta. Intente nuevamente.", false, true);
-    }
-    return null;
-  }
-}
-
 function downloadJsonBackup(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -5334,56 +5242,27 @@ function downloadJsonBackup(blob, filename) {
 async function exportData() {
   const filename = `concurso-jtp-${fileTimestamp()}.json`;
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-  if ("showDirectoryPicker" in window) {
-    let handle = backupDirectoryHandle;
-    if (!handle) handle = await chooseBackupDirectory();
-    if (!handle) return;
+  if ("showSaveFilePicker" in window) {
     try {
-      if (!(await ensureBackupDirectoryPermission(handle))) {
-        backupFolderStatus("El navegador no autorizó guardar en la carpeta.", false, true);
-        return;
-      }
-      const fileHandle = await handle.getFileHandle(filename, { create: true });
+      const fileHandle = await window.showSaveFilePicker({
+        id: "concurso-json-backup",
+        suggestedName: filename,
+        types: [{
+          description: "Respaldo JSON del concurso",
+          accept: { "application/json": [".json"] }
+        }]
+      });
       const writable = await fileHandle.createWritable();
       await writable.write(blob);
       await writable.close();
-      backupFolderStatus(`Respaldo guardado en ${handle.name}: ${filename}`, true);
     } catch (error) {
+      if (error?.name === "AbortError") return;
       downloadJsonBackup(blob, filename);
-      backupFolderStatus("El navegador no permitió escribir en la carpeta. El JSON se guardó como descarga.", false, true);
-      return;
     }
   } else {
     downloadJsonBackup(blob, filename);
   }
   lastJsonBackupAt = new Date();
-}
-
-async function importDataFromBackupFolder() {
-  if (!("showOpenFilePicker" in window)) {
-    document.querySelector("#import-data")?.click();
-    return;
-  }
-  let handle = backupDirectoryHandle;
-  if (!handle) handle = await chooseBackupDirectory();
-  if (!handle) return;
-  try {
-    if (!(await ensureBackupDirectoryPermission(handle))) return;
-    const [fileHandle] = await window.showOpenFilePicker({
-      id: "concurso-backup-file",
-      startIn: handle,
-      multiple: false,
-      types: [{
-        description: "Respaldo del concurso",
-        accept: { "application/json": [".json"] }
-      }]
-    });
-    if (fileHandle) importData(await fileHandle.getFile());
-  } catch (error) {
-    if (error?.name !== "AbortError") {
-      backupFolderStatus("No se pudo abrir el respaldo seleccionado.", false, true);
-    }
-  }
 }
 
 function roundedWorkbookRows(rows) {
@@ -6093,11 +5972,6 @@ document.querySelector("#export-oposicion-excel")?.addEventListener("click", exp
 document.querySelector("#export-results-excel").addEventListener("click", exportResultsExcel);
 document.querySelector("#export-merit-excel").addEventListener("click", exportMeritExcel);
 document.querySelector("#export-data").addEventListener("click", exportData);
-document.querySelector("#choose-backup-folder")?.addEventListener("click", async () => {
-  const handle = await chooseBackupDirectory();
-  if (handle) await exportData();
-});
-document.querySelector("#import-data-from-folder")?.addEventListener("click", importDataFromBackupFolder);
 document.querySelector("#import-data").addEventListener("change", (event) => {
   if (event.target.files[0]) importData(event.target.files[0]);
   event.target.value = "";
@@ -6116,4 +5990,3 @@ document.querySelector("#import-postulantes").addEventListener("change", (event)
 });
 
 render();
-restoreBackupDirectory();
