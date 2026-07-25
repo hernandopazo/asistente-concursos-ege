@@ -5306,7 +5306,12 @@ async function chooseBackupDirectory() {
       return null;
     }
     backupDirectoryHandle = handle;
-    await rememberBackupDirectory(handle);
+    try {
+      await rememberBackupDirectory(handle);
+    } catch (error) {
+      // Algunos navegadores permiten usar la carpeta durante la sesión,
+      // pero no conservar el permiso para la próxima visita.
+    }
     backupFolderStatus(`Carpeta vinculada: ${handle.name}`, true);
     return handle;
   } catch (error) {
@@ -5344,8 +5349,8 @@ async function exportData() {
       await writable.close();
       backupFolderStatus(`Respaldo guardado en ${handle.name}: ${filename}`, true);
     } catch (error) {
-      backupFolderStatus("No se pudo guardar en la carpeta elegida.", false, true);
-      alert("No se pudo guardar el respaldo en la carpeta local.");
+      downloadJsonBackup(blob, filename);
+      backupFolderStatus("El navegador no permitió escribir en la carpeta. El JSON se guardó como descarga.", false, true);
       return;
     }
   } else {
@@ -6088,7 +6093,10 @@ document.querySelector("#export-oposicion-excel")?.addEventListener("click", exp
 document.querySelector("#export-results-excel").addEventListener("click", exportResultsExcel);
 document.querySelector("#export-merit-excel").addEventListener("click", exportMeritExcel);
 document.querySelector("#export-data").addEventListener("click", exportData);
-document.querySelector("#choose-backup-folder")?.addEventListener("click", chooseBackupDirectory);
+document.querySelector("#choose-backup-folder")?.addEventListener("click", async () => {
+  const handle = await chooseBackupDirectory();
+  if (handle) await exportData();
+});
 document.querySelector("#import-data-from-folder")?.addEventListener("click", importDataFromBackupFolder);
 document.querySelector("#import-data").addEventListener("change", (event) => {
   if (event.target.files[0]) importData(event.target.files[0]);
