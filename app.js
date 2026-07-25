@@ -5269,11 +5269,11 @@ async function rememberBackupDirectory(handle) {
 
 async function restoreBackupDirectory() {
   if (!("showDirectoryPicker" in window)) {
-    backupFolderStatus("Este navegador usará descargas de archivos; no admite vincular carpetas.", false);
-    document.querySelector("#choose-backup-folder")?.setAttribute("hidden", "");
-    document.querySelector("#import-data-from-folder")?.setAttribute("hidden", "");
+    backupFolderStatus("Este navegador no permite vincular carpetas. Exportar JSON guardará el archivo mediante una descarga.", false);
     return;
   }
+  document.querySelector("#choose-backup-folder")?.removeAttribute("hidden");
+  document.querySelector("#import-data-from-folder")?.removeAttribute("hidden");
   try {
     const db = await openBackupDirectoryDb();
     backupDirectoryHandle = await new Promise((resolve, reject) => {

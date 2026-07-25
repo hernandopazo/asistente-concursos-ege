@@ -184,11 +184,11 @@
                 <strong>Carpeta local de respaldos</strong>
                 <p id="backup-folder-status" class="inline-status" aria-live="polite">Todavía no se eligió una carpeta.</p>
               </div>
-              <button id="choose-backup-folder" class="primary-button" type="button">Elegir o crear carpeta</button>
+              <button id="choose-backup-folder" class="primary-button" type="button" hidden>Elegir o crear carpeta</button>
             </div>
             <div class="header-actions">
               <button id="export-data" class="secondary-button" type="button">Exportar JSON</button>
-              <button id="import-data-from-folder" class="secondary-button" type="button">Importar desde carpeta</button>
+              <button id="import-data-from-folder" class="secondary-button" type="button" hidden>Importar desde carpeta</button>
               <label class="secondary-button file-button">
                 Importar otro archivo
                 <input id="import-data" type="file" accept="application/json" />
@@ -710,7 +710,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js"></script>
-    <script src="collaboration.js"></script>
+    <script src="app.js?v=20260724-3"></script>
+    <script src="collaboration.js?v=20260724-3"></script>
   </body>
 </html>
