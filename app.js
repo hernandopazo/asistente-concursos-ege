@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 38;
+const DATA_VERSION = 39;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -172,7 +172,7 @@ const initialState = {
           { id: "materia_96", nombre: "Materia (más de 96 hs)", puntos: 0.15 },
           { id: "curso_50_95", nombre: "Curso (entre 50 y 95 hs)", puntos: 0.07 },
           { id: "cursillo_20_50", nombre: "Cursillo (entre 20 y 50 hs)", puntos: 0.03 },
-          { id: "cursillo_menos_20", nombre: "Cursillo (entre menos de 20 hs)", puntos: 0.01 }
+          { id: "cursillo_menos_20", nombre: "Cursillo (menos de 20 hs)", puntos: 0.01 }
         ]
       },
       {
@@ -766,13 +766,18 @@ function migrateState(savedState) {
     const courseType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cursos");
     const shortCourse = {
       id: "cursillo_menos_20",
-      nombre: "Cursillo (entre menos de 20 hs)",
+      nombre: "Cursillo (menos de 20 hs)",
       puntos: 0.01
     };
     if (courseType && !courseType.subitems?.some((subitem) => subitem.id === shortCourse.id)) {
       const cursilloIndex = courseType.subitems.findIndex((subitem) => subitem.id === "cursillo_20_50");
       courseType.subitems.splice(cursilloIndex >= 0 ? cursilloIndex + 1 : courseType.subitems.length, 0, shortCourse);
     }
+  }
+  if ((savedState.dataVersion || 1) < 39) {
+    const courseType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cursos");
+    const shortCourse = courseType?.subitems?.find((subitem) => subitem.id === "cursillo_menos_20");
+    if (shortCourse) shortCourse.nombre = "Cursillo (menos de 20 hs)";
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
