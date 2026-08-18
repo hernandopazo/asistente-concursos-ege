@@ -3313,7 +3313,9 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
     if (event.target === dialog) dialog.close();
   });
   dialog.addEventListener("close", () => {
+    const matrixScrollPositions = captureMatrixScrollPositions();
     renderDocentesMatrix();
+    restoreMatrixScrollPositions(matrixScrollPositions);
     window.collaboration?.applyPermissions?.();
   }, { once: true });
   refreshSummary();
