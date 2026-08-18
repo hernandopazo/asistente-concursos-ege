@@ -889,6 +889,10 @@
       "#individual-import-evaluator",
       "#import-individual-data",
       "#copy-docentes-to-consolidated",
+      "#copy-cientificos-to-consolidated",
+      "#copy-extension-to-consolidated",
+      "#copy-profesionales-to-consolidated",
+      "#copy-otros-to-consolidated",
       "#contest-lock-toggle",
     ];
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));

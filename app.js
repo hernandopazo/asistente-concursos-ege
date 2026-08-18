@@ -3272,6 +3272,8 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
       cargas[postulante.id].valores[fieldId] = decimalValue;
       if (activeDocentesCargaId !== "consolidada") {
         syncConsolidatedAntecedentField(module, postulante.id, fieldId);
+      } else {
+        module.consolidacionManual = true;
       }
       refreshSummary();
       updateTeachingOriginCell(subitem, postulante, cargas);
@@ -3300,38 +3302,33 @@ function docentesSubitemUnitLabel(subitem) {
   return `${formatNumber(subitem.puntos)} puntos por unidad`;
 }
 
-function updateCopyDocentesToConsolidatedButton() {
-  const button = document.querySelector("#copy-docentes-to-consolidated");
+function updateCopyAntecedentToConsolidatedButton({ buttonId, module, activeId, setActiveId, seed, rerender }) {
+  const button = document.querySelector(`#${buttonId}`);
   if (!button) return;
-  const module = state.antecedentesDocentes;
-  const sourceEvaluator = state.oposicion.evaluadores.find((evaluador) => evaluador.id === activeDocentesCargaId);
+  const source = module.cargasEvaluadores?.[activeId];
   const canCopy = window.collaboration?.currentRole?.() === "admin"
     && module.modalidad === "evaluadores"
-    && activeDocentesCargaId !== "consolidada"
-    && Boolean(sourceEvaluator);
+    && activeId !== "consolidada"
+    && state.oposicion.evaluadores.some((evaluador) => evaluador.id === activeId)
+    && Boolean(source);
   button.hidden = !canCopy;
   button.disabled = !canCopy;
-  button.textContent = sourceEvaluator ? `Copiar carga de ${sourceEvaluator.nombre} a consolidada` : "Copiar esta carga a consolidada";
-  button.onclick = () => copyDocentesLoadToConsolidated(activeDocentesCargaId);
-}
-
-function copyDocentesLoadToConsolidated(evaluatorId) {
-  const module = state.antecedentesDocentes;
-  const sourceEvaluator = state.oposicion.evaluadores.find((evaluador) => evaluador.id === evaluatorId);
-  const source = module.cargasEvaluadores?.[evaluatorId];
-  if (!sourceEvaluator || !source) return;
-  const confirmed = window.confirm(
-    `¿Copiar la carga docente de ${sourceEvaluator.nombre} a Carga consolidada? Se reemplazarán los valores consolidados actuales de antecedentes docentes.`
-  );
-  if (!confirmed) return;
-  module.cargas = clone(source);
-  module.consolidacionManual = true;
-  activeDocentesCargaId = "consolidada";
-  seedDocentes(state);
-  renderDocentesMatrix();
-  renderResultados();
-  renderMerit();
-  saveState();
+  button.textContent = "Copiar esta carga a consolidada";
+  button.onclick = () => {
+    if (!canCopy) return;
+    const confirmed = window.confirm(
+      "¿Copiar esta carga a Carga consolidada? Se reemplazarán los valores consolidados actuales de esta sección."
+    );
+    if (!confirmed) return;
+    module.cargas = clone(source);
+    module.consolidacionManual = true;
+    setActiveId("consolidada");
+    seed(state);
+    rerender();
+    renderResultados();
+    renderMerit();
+    saveState();
+  };
 }
 
 function renderDocentesMatrix() {
@@ -3460,7 +3457,14 @@ function renderDocentesMatrix() {
 
   attachAntecedentNotesHandler(container, module, activeDocentesCargaId);
   attachAntecedentDetailsState(container, "docentes");
-  updateCopyDocentesToConsolidatedButton();
+  updateCopyAntecedentToConsolidatedButton({
+    buttonId: "copy-docentes-to-consolidated",
+    module,
+    activeId: activeDocentesCargaId,
+    setActiveId: (value) => { activeDocentesCargaId = value; },
+    seed: seedDocentes,
+    rerender: renderDocentesMatrix
+  });
 
   const cargoType = module.tipos.find((tipo) => tipo.id === "cargo");
   if (cargoType) {
@@ -3895,6 +3899,8 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
       cargas[postulante.id].valores[subitemId] = event.target.value;
       if (activeCientificosCargaId !== "consolidada") {
         syncConsolidatedAntecedentField(module, postulante.id, subitemId);
+      } else {
+        module.consolidacionManual = true;
       }
       refreshSummary();
       updatePublicationCell(tipo, group, postulante, cargas);
@@ -4013,7 +4019,14 @@ function renderCientificosMatrix() {
 
   attachAntecedentNotesHandler(container, module, activeCientificosCargaId);
   attachAntecedentDetailsState(container, "cientificos");
-
+  updateCopyAntecedentToConsolidatedButton({
+    buttonId: "copy-cientificos-to-consolidated",
+    module,
+    activeId: activeCientificosCargaId,
+    setActiveId: (value) => { activeCientificosCargaId = value; },
+    seed: seedCientificos,
+    rerender: renderCientificosMatrix
+  });
 
   const publicationType = module.tipos.find((tipo) => tipo.id === "publicaciones");
   if (publicationType) {
@@ -4034,6 +4047,7 @@ function renderCientificosMatrix() {
       const postulanteId = event.target.dataset.postulanteId;
       cargas[postulanteId].valores[event.target.dataset.cienValue] = event.target.value;
       if (activeCientificosCargaId === "consolidada") {
+        module.consolidacionManual = true;
         updateCientificosCandidate(postulanteId);
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.cienValue);
@@ -4372,7 +4386,14 @@ function renderExtensionMatrix() {
 
   attachAntecedentNotesHandler(container, module, activeExtensionCargaId);
   attachAntecedentDetailsState(container, "extension");
-
+  updateCopyAntecedentToConsolidatedButton({
+    buttonId: "copy-extension-to-consolidated",
+    module,
+    activeId: activeExtensionCargaId,
+    setActiveId: (value) => { activeExtensionCargaId = value; },
+    seed: seedExtension,
+    rerender: renderExtensionMatrix
+  });
 
   container.querySelectorAll("[data-ext-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -4381,6 +4402,7 @@ function renderExtensionMatrix() {
       if (event.target.value !== value) event.target.value = value;
       cargas[postulanteId].valores[event.target.dataset.extValue] = value;
       if (activeExtensionCargaId === "consolidada") {
+        module.consolidacionManual = true;
         updateExtensionCandidate(postulanteId);
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.extValue);
@@ -4723,7 +4745,14 @@ function renderProfesionalesMatrix() {
 
   attachAntecedentNotesHandler(container, module, activeProfesionalesCargaId);
   attachAntecedentDetailsState(container, "profesionales");
-
+  updateCopyAntecedentToConsolidatedButton({
+    buttonId: "copy-profesionales-to-consolidated",
+    module,
+    activeId: activeProfesionalesCargaId,
+    setActiveId: (value) => { activeProfesionalesCargaId = value; },
+    seed: seedProfesionales,
+    rerender: renderProfesionalesMatrix
+  });
 
   container.querySelectorAll("[data-prof-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
@@ -4732,6 +4761,7 @@ function renderProfesionalesMatrix() {
       if (event.target.value !== value) event.target.value = value;
       cargas[postulanteId].valores[event.target.dataset.profValue] = value;
       if (activeProfesionalesCargaId === "consolidada") {
+        module.consolidacionManual = true;
         updateProfesionalesCandidate(postulanteId);
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.profValue);
@@ -5059,7 +5089,14 @@ function renderOtrosMatrix() {
 
   attachAntecedentNotesHandler(container, module, activeOtrosCargaId);
   attachAntecedentDetailsState(container, "otros");
-
+  updateCopyAntecedentToConsolidatedButton({
+    buttonId: "copy-otros-to-consolidated",
+    module,
+    activeId: activeOtrosCargaId,
+    setActiveId: (value) => { activeOtrosCargaId = value; },
+    seed: seedOtros,
+    rerender: renderOtrosMatrix
+  });
 
   container.querySelectorAll("[data-otros-value]").forEach((input) => {
     const updateValue = (event) => {
@@ -5075,6 +5112,7 @@ function renderOtrosMatrix() {
       if (event.target.value !== value) event.target.value = value;
       cargas[postulanteId].valores[event.target.dataset.otrosValue] = value;
       if (activeOtrosCargaId === "consolidada") {
+        module.consolidacionManual = true;
         updateOtrosCandidate(postulanteId);
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.otrosValue);
