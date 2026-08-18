@@ -147,7 +147,7 @@ const initialState = {
           { id: "un_segunda", nombre: "Universidades nacionales: segunda por cargo y año", puntos: 0.25 },
           { id: "cbc_auxiliar", nombre: "CBC auxiliar por cargo y año", puntos: 0.5 },
           { id: "privada_invitado", nombre: "Universidad privada o docente invitado en otras universidades por cargo y año", puntos: 0.2 },
-          { id: "otros_niveles", nombre: "Terciario, secundario, tutores o consejeros", puntos: 0.2 }
+          { id: "otros_niveles", nombre: "Terciario, secundario, tutores, consejeros o UBA-Programa", puntos: 0.2 }
         ]
       },
       {
