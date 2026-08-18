@@ -888,6 +888,7 @@
       "#clear-antecedent-notes",
       "#individual-import-evaluator",
       "#import-individual-data",
+      "#copy-docentes-to-consolidated",
       "#contest-lock-toggle",
     ];
     adminSelectors.forEach((selector) => setDisabled(selector, !isAdmin));

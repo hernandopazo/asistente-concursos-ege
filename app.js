@@ -3289,6 +3289,39 @@ function docentesSubitemUnitLabel(subitem) {
   return `${formatNumber(subitem.puntos)} puntos por unidad`;
 }
 
+function updateCopyDocentesToConsolidatedButton() {
+  const button = document.querySelector("#copy-docentes-to-consolidated");
+  if (!button) return;
+  const module = state.antecedentesDocentes;
+  const sourceEvaluator = state.oposicion.evaluadores.find((evaluador) => evaluador.id === activeDocentesCargaId);
+  const canCopy = window.collaboration?.currentRole?.() === "admin"
+    && module.modalidad === "evaluadores"
+    && activeDocentesCargaId !== "consolidada"
+    && Boolean(sourceEvaluator);
+  button.hidden = !canCopy;
+  button.disabled = !canCopy;
+  button.textContent = sourceEvaluator ? `Copiar carga de ${sourceEvaluator.nombre} a consolidada` : "Copiar esta carga a consolidada";
+  button.onclick = () => copyDocentesLoadToConsolidated(activeDocentesCargaId);
+}
+
+function copyDocentesLoadToConsolidated(evaluatorId) {
+  const module = state.antecedentesDocentes;
+  const sourceEvaluator = state.oposicion.evaluadores.find((evaluador) => evaluador.id === evaluatorId);
+  const source = module.cargasEvaluadores?.[evaluatorId];
+  if (!sourceEvaluator || !source) return;
+  const confirmed = window.confirm(
+    `¿Copiar la carga docente de ${sourceEvaluator.nombre} a Carga consolidada? Se reemplazarán los valores consolidados actuales de antecedentes docentes.`
+  );
+  if (!confirmed) return;
+  module.cargas = clone(source);
+  activeDocentesCargaId = "consolidada";
+  seedDocentes(state);
+  renderDocentesMatrix();
+  renderResultados();
+  renderMerit();
+  saveState();
+}
+
 function renderDocentesMatrix() {
   const container = document.querySelector("#docentes-matrix");
   const module = state.antecedentesDocentes;
@@ -3415,7 +3448,7 @@ function renderDocentesMatrix() {
 
   attachAntecedentNotesHandler(container, module, activeDocentesCargaId);
   attachAntecedentDetailsState(container, "docentes");
-
+  updateCopyDocentesToConsolidatedButton();
 
   const cargoType = module.tipos.find((tipo) => tipo.id === "cargo");
   if (cargoType) {
