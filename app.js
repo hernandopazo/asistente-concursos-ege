@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 34;
+const DATA_VERSION = 35;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -729,6 +729,11 @@ function migrateState(savedState) {
   }
   if ((savedState.dataVersion || 1) < 24) {
     normalizeSingleScorePublicationGroups(savedState.antecedentesCientificos);
+  }
+  if ((savedState.dataVersion || 1) < 35) {
+    const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
+    const otherLevels = cargoType?.subitems?.find((subitem) => subitem.id === "otros_niveles");
+    if (otherLevels) otherLevels.nombre = "Terciario, secundario, tutores, consejeros o UBA-Programa";
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
