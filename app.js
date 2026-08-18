@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 35;
+const DATA_VERSION = 36;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -147,7 +147,8 @@ const initialState = {
           { id: "un_segunda", nombre: "Universidades nacionales: segunda por cargo y año", puntos: 0.25 },
           { id: "cbc_auxiliar", nombre: "CBC auxiliar por cargo y año", puntos: 0.5 },
           { id: "privada_invitado", nombre: "Universidad privada o docente invitado en otras universidades por cargo y año", puntos: 0.2 },
-          { id: "otros_niveles", nombre: "Terciario, secundario, tutores, consejeros o UBA-Programa", puntos: 0.2 }
+          { id: "otros_niveles", nombre: "Terciario, secundario, tutores, consejeros o UBA-Programa", puntos: 0.2 },
+          { id: "cursos_primarios_relevancia", nombre: "Participación en cursos para colegios primarios de relevancia", puntos: 0.1 }
         ]
       },
       {
@@ -734,6 +735,18 @@ function migrateState(savedState) {
     const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
     const otherLevels = cargoType?.subitems?.find((subitem) => subitem.id === "otros_niveles");
     if (otherLevels) otherLevels.nombre = "Terciario, secundario, tutores, consejeros o UBA-Programa";
+  }
+  if ((savedState.dataVersion || 1) < 36) {
+    const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
+    const primaryCourses = {
+      id: "cursos_primarios_relevancia",
+      nombre: "Participación en cursos para colegios primarios de relevancia",
+      puntos: 0.1
+    };
+    if (cargoType && !cargoType.subitems?.some((subitem) => subitem.id === primaryCourses.id)) {
+      const otherLevelsIndex = cargoType.subitems.findIndex((subitem) => subitem.id === "otros_niveles");
+      cargoType.subitems.splice(otherLevelsIndex >= 0 ? otherLevelsIndex + 1 : cargoType.subitems.length, 0, primaryCourses);
+    }
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
