@@ -2289,7 +2289,31 @@ function promedioOposicionExplanation(postulanteId) {
   return `${lines.join("\n")}\nSuma de evaluadores con carga ÷ ${evaluadores.length} = ${formatNumber(promedioOposicion(postulanteId))}`;
 }
 
+function captureMatrixScrollPositions() {
+  const positions = new Map();
+  document.querySelectorAll("[data-scroll-key]").forEach((element) => {
+    positions.set(element.dataset.scrollKey, {
+      left: element.scrollLeft,
+      top: element.scrollTop
+    });
+  });
+  return positions;
+}
+
+function restoreMatrixScrollPositions(positions) {
+  if (!positions || !positions.size) return;
+  requestAnimationFrame(() => {
+    document.querySelectorAll("[data-scroll-key]").forEach((element) => {
+      const position = positions.get(element.dataset.scrollKey);
+      if (!position) return;
+      element.scrollLeft = position.left;
+      element.scrollTop = position.top;
+    });
+  });
+}
+
 function render() {
+  const matrixScrollPositions = captureMatrixScrollPositions();
   renumberPostulantes();
   seedEvaluations(state);
   renderIndividualImportEvaluatorOptions();
@@ -2326,6 +2350,7 @@ function render() {
   applyContestLock();
   saveState();
   window.collaboration?.applyPermissions?.();
+  restoreMatrixScrollPositions(matrixScrollPositions);
 }
 
 function renderOppositionView() {
@@ -2810,7 +2835,7 @@ function renderEvaluadores() {
 
   container.innerHTML = `
     <section class="evaluator evaluator-colored-load" style="${evaluatorStyle(evaluador.id)}">
-      <div class="opposition-grid">
+      <div class="opposition-grid" data-scroll-key="oposicion:evaluaciones">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -3399,7 +3424,7 @@ function renderDocentesMatrix() {
           <small>${teachingTypeInstruction(tipo)}</small>
           <span>Tope base: ${formatNumber(tipo.maxSimple)}</span>
         </summary>
-        <div class="opposition-grid">
+        <div class="opposition-grid" data-scroll-key="docentes:${typeIndex}">
           <table class="data-table opposition-matrix">
             <thead>
               <tr>
@@ -3420,7 +3445,7 @@ function renderDocentesMatrix() {
   container.innerHTML = `
     <div class="${activeDocentesCargaId === "consolidada" ? "" : "evaluator-colored-load"}" ${activeDocentesCargaId === "consolidada" ? "" : `style="${evaluatorStyle(activeDocentesCargaId)}"`}>
       <div class="scientific-entry-list">${groups}</div>
-      <div class="opposition-grid scientific-totals">
+      <div class="opposition-grid scientific-totals" data-scroll-key="docentes:totals">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -3946,7 +3971,7 @@ function renderCientificosMatrix() {
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
         <span>Tope interno: ${formatNumber(tipo.maxInterno)}</span>
       </summary>
-      <div class="opposition-grid">
+      <div class="opposition-grid" data-scroll-key="cientificos:${typeIndex}">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -3982,7 +4007,7 @@ function renderCientificosMatrix() {
   container.innerHTML = `
     <div class="${activeCientificosCargaId === "consolidada" ? "" : "evaluator-colored-load"}" ${activeCientificosCargaId === "consolidada" ? "" : `style="${evaluatorStyle(activeCientificosCargaId)}"`}>
       <div class="scientific-entry-list">${groups}</div>
-      <div class="opposition-grid scientific-totals">
+      <div class="opposition-grid scientific-totals" data-scroll-key="cientificos:totals">
       <table class="data-table opposition-matrix">
         <thead>
           <tr>
@@ -4283,7 +4308,7 @@ function renderExtensionMatrix() {
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
         <span>Tope interno: ${formatNumber(tipo.maxInterno)}</span>
       </summary>
-      <div class="opposition-grid">
+      <div class="opposition-grid" data-scroll-key="extension:${typeIndex}">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -4350,7 +4375,7 @@ function renderExtensionMatrix() {
   container.innerHTML = `
     <div class="${activeExtensionCargaId === "consolidada" ? "" : "evaluator-colored-load"}" ${activeExtensionCargaId === "consolidada" ? "" : `style="${evaluatorStyle(activeExtensionCargaId)}"`}>
       <div class="scientific-entry-list">${groups}</div>
-      <div class="opposition-grid scientific-totals">
+      <div class="opposition-grid scientific-totals" data-scroll-key="extension:totals">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -4643,7 +4668,7 @@ function renderProfesionalesMatrix() {
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
         <span>Tope interno: ${formatNumber(tipo.maxInterno)}</span>
       </summary>
-      <div class="opposition-grid">
+      <div class="opposition-grid" data-scroll-key="profesionales:${typeIndex}">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -4709,7 +4734,7 @@ function renderProfesionalesMatrix() {
   container.innerHTML = `
     <div class="${activeProfesionalesCargaId === "consolidada" ? "" : "evaluator-colored-load"}" ${activeProfesionalesCargaId === "consolidada" ? "" : `style="${evaluatorStyle(activeProfesionalesCargaId)}"`}>
       <div class="scientific-entry-list">${groups}</div>
-      <div class="opposition-grid scientific-totals">
+      <div class="opposition-grid scientific-totals" data-scroll-key="profesionales:totals">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -5013,7 +5038,7 @@ function renderOtrosMatrix() {
         <small>${tipo.instruccion || "Ingrese la cantidad correspondiente."}</small>
         <span>Tope del bloque: ${formatNumber(tipo.maxInterno)}</span>
       </summary>
-      <div class="opposition-grid">
+      <div class="opposition-grid" data-scroll-key="otros:${typeIndex}">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
@@ -5053,7 +5078,7 @@ function renderOtrosMatrix() {
   container.innerHTML = `
     <div class="${activeOtrosCargaId === "consolidada" ? "" : "evaluator-colored-load"}" ${activeOtrosCargaId === "consolidada" ? "" : `style="${evaluatorStyle(activeOtrosCargaId)}"`}>
       <div class="scientific-entry-list">${groups}</div>
-      <div class="opposition-grid scientific-totals">
+      <div class="opposition-grid scientific-totals" data-scroll-key="otros:totals">
         <table class="data-table opposition-matrix">
           <thead>
             <tr>
