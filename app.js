@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 36;
+const DATA_VERSION = 37;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -148,7 +148,8 @@ const initialState = {
           { id: "cbc_auxiliar", nombre: "CBC auxiliar por cargo y año", puntos: 0.5 },
           { id: "privada_invitado", nombre: "Universidad privada o docente invitado en otras universidades por cargo y año", puntos: 0.2 },
           { id: "otros_niveles", nombre: "Terciario, secundario, tutores, consejeros o UBA-Programa", puntos: 0.2 },
-          { id: "cursos_primarios_relevancia", nombre: "Participación en cursos para colegios primarios de relevancia", puntos: 0.1 }
+          { id: "cursos_primarios_relevancia", nombre: "Participación en cursos para colegios primarios de relevancia", puntos: 0.1 },
+          { id: "charlas_seminarios_universidades", nombre: "Charlas y seminarios en universidades nacionales o extranjeras", puntos: 0.15 }
         ]
       },
       {
@@ -746,6 +747,18 @@ function migrateState(savedState) {
     if (cargoType && !cargoType.subitems?.some((subitem) => subitem.id === primaryCourses.id)) {
       const otherLevelsIndex = cargoType.subitems.findIndex((subitem) => subitem.id === "otros_niveles");
       cargoType.subitems.splice(otherLevelsIndex >= 0 ? otherLevelsIndex + 1 : cargoType.subitems.length, 0, primaryCourses);
+    }
+  }
+  if ((savedState.dataVersion || 1) < 37) {
+    const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
+    const universityTalks = {
+      id: "charlas_seminarios_universidades",
+      nombre: "Charlas y seminarios en universidades nacionales o extranjeras",
+      puntos: 0.15
+    };
+    if (cargoType && !cargoType.subitems?.some((subitem) => subitem.id === universityTalks.id)) {
+      const primaryCoursesIndex = cargoType.subitems.findIndex((subitem) => subitem.id === "cursos_primarios_relevancia");
+      cargoType.subitems.splice(primaryCoursesIndex >= 0 ? primaryCoursesIndex + 1 : cargoType.subitems.length, 0, universityTalks);
     }
   }
   savedState.dataVersion = DATA_VERSION;
