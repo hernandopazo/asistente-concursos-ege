@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 39;
+const DATA_VERSION = 40;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -182,7 +182,8 @@ const initialState = {
         modo: "cantidad",
         subitems: [
           { id: "posgrado_diferente", nombre: "Participación en cursos de posgrado diferentes", puntos: 0.2 },
-          { id: "materias_area", nombre: "Desempeño de cargos en materias diferentes del área", puntos: 0.3 }
+          { id: "materias_area", nombre: "Desempeño de cargos en materias diferentes del área", puntos: 0.3 },
+          { id: "congresos_docencia", nombre: "Participación en congresos de docencia (nac. o int.)", puntos: 0.05 }
         ]
       }
     ],
@@ -778,6 +779,18 @@ function migrateState(savedState) {
     const courseType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cursos");
     const shortCourse = courseType?.subitems?.find((subitem) => subitem.id === "cursillo_menos_20");
     if (shortCourse) shortCourse.nombre = "Cursillo (menos de 20 hs)";
+  }
+  if ((savedState.dataVersion || 1) < 40) {
+    const otherType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "otros");
+    const teachingConferences = {
+      id: "congresos_docencia",
+      nombre: "Participación en congresos de docencia (nac. o int.)",
+      puntos: 0.05
+    };
+    if (otherType && !otherType.subitems?.some((subitem) => subitem.id === teachingConferences.id)) {
+      const areaSubjectsIndex = otherType.subitems.findIndex((subitem) => subitem.id === "materias_area");
+      otherType.subitems.splice(areaSubjectsIndex >= 0 ? areaSubjectsIndex + 1 : otherType.subitems.length, 0, teachingConferences);
+    }
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
