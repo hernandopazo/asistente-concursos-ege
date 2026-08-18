@@ -807,6 +807,7 @@ function migrateState(savedState) {
   savedState.antecedentesDocentes.participacion ||= {};
   savedState.antecedentesDocentes.cargasEvaluadores ||= {};
   savedState.antecedentesDocentes.anotaciones ||= {};
+  savedState.antecedentesDocentes.consolidacionManual ||= false;
   savedState.antecedentesDocentes.factorDege ??= initialState.antecedentesDocentes.factorDege;
   savedState.antecedentesDocentes.factorOtroDepto ??= initialState.antecedentesDocentes.factorOtroDepto;
   const normalizedCargo = savedState.antecedentesDocentes.tipos?.find((tipo) => tipo.id === "cargo");
@@ -820,12 +821,14 @@ function migrateState(savedState) {
   savedState.antecedentesCientificos.participacion ||= {};
   savedState.antecedentesCientificos.cargasEvaluadores ||= {};
   savedState.antecedentesCientificos.anotaciones ||= {};
+  savedState.antecedentesCientificos.consolidacionManual ||= false;
   normalizeSingleScorePublicationGroups(savedState.antecedentesCientificos);
   savedState.antecedentesExtension ||= clone(initialState.antecedentesExtension);
   savedState.antecedentesExtension.modalidad ||= "unica";
   savedState.antecedentesExtension.participacion ||= {};
   savedState.antecedentesExtension.cargasEvaluadores ||= {};
   savedState.antecedentesExtension.anotaciones ||= {};
+  savedState.antecedentesExtension.consolidacionManual ||= false;
   const extensionPublications = savedState.antecedentesExtension.tipos?.find((tipo) => tipo.id === "publicaciones_divulgacion");
   const extensionBooks = extensionPublications?.subitems?.find((item) => item.id === "ext_libros_cuadernillos");
   if (extensionBooks) {
@@ -846,12 +849,14 @@ function migrateState(savedState) {
   savedState.antecedentesProfesionales.participacion ||= {};
   savedState.antecedentesProfesionales.cargasEvaluadores ||= {};
   savedState.antecedentesProfesionales.anotaciones ||= {};
+  savedState.antecedentesProfesionales.consolidacionManual ||= false;
   normalizeProfessionalCompositeItems(savedState.antecedentesProfesionales);
   savedState.otrosAntecedentes ||= clone(initialState.otrosAntecedentes);
   savedState.otrosAntecedentes.modalidad ||= "unica";
   savedState.otrosAntecedentes.participacion ||= {};
   savedState.otrosAntecedentes.cargasEvaluadores ||= {};
   savedState.otrosAntecedentes.anotaciones ||= {};
+  savedState.otrosAntecedentes.consolidacionManual ||= false;
   savedState.otrosAntecedentes.maxInternoTotal ??= initialState.otrosAntecedentes.maxInternoTotal;
   savedState.scoreConfigurationLocks ||= {};
   Object.keys(initialState.scoreConfigurationLocks).forEach((key) => {
@@ -1017,6 +1022,7 @@ function seedDocentes(nextState = state) {
   module.participacion ||= {};
   module.anotaciones ||= {};
   module.anotaciones.consolidada ||= "";
+  module.consolidacionManual ||= false;
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
@@ -1053,6 +1059,7 @@ function seedCientificos(nextState = state) {
   module.participacion ||= {};
   module.anotaciones ||= {};
   module.anotaciones.consolidada ||= "";
+  module.consolidacionManual ||= false;
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
@@ -1077,6 +1084,7 @@ function seedExtension(nextState = state) {
   module.participacion ||= {};
   module.anotaciones ||= {};
   module.anotaciones.consolidada ||= "";
+  module.consolidacionManual ||= false;
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
@@ -1109,6 +1117,7 @@ function seedProfesionales(nextState = state) {
   module.participacion ||= {};
   module.anotaciones ||= {};
   module.anotaciones.consolidada ||= "";
+  module.consolidacionManual ||= false;
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
@@ -1133,6 +1142,7 @@ function seedOtros(nextState = state) {
   module.participacion ||= {};
   module.anotaciones ||= {};
   module.anotaciones.consolidada ||= "";
+  module.consolidacionManual ||= false;
   nextState.oposicion.evaluadores.forEach((evaluador) => {
     module.participacion[evaluador.id] ??= true;
     module.cargasEvaluadores[evaluador.id] ||= {};
@@ -1439,6 +1449,7 @@ function antecedentDifference(module, postulanteId, fieldId) {
 }
 
 function syncConsolidatedAntecedentField(module, postulanteId, fieldId) {
+  if (module.consolidacionManual) return;
   const values = participatingEvaluators(module)
     .map((evaluador) => {
       const value = module.cargasEvaluadores[evaluador.id]?.[postulanteId]?.valores?.[fieldId];
@@ -1459,7 +1470,7 @@ function syncAllConsolidatedAntecedents() {
     state.antecedentesProfesionales,
     state.otrosAntecedentes
   ].forEach((module) => {
-    if (module.modalidad !== "evaluadores") return;
+    if (module.modalidad !== "evaluadores" || module.consolidacionManual) return;
     state.postulantes.forEach((postulante) => {
       module.cargas[postulante.id] ||= { valores: {} };
       module.cargas[postulante.id].valores ||= {};
@@ -3314,6 +3325,7 @@ function copyDocentesLoadToConsolidated(evaluatorId) {
   );
   if (!confirmed) return;
   module.cargas = clone(source);
+  module.consolidacionManual = true;
   activeDocentesCargaId = "consolidada";
   seedDocentes(state);
   renderDocentesMatrix();
@@ -3467,6 +3479,7 @@ function renderDocentesMatrix() {
       const postulanteId = event.target.dataset.postulanteId;
       cargas[postulanteId].valores[event.target.dataset.docValue] = event.target.value;
       if (activeDocentesCargaId === "consolidada") {
+        module.consolidacionManual = true;
         updateDocentesCandidate(postulanteId);
       } else {
         syncConsolidatedAntecedentField(module, postulanteId, event.target.dataset.docValue);
