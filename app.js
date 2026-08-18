@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 40;
+const DATA_VERSION = 41;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -147,7 +147,7 @@ const initialState = {
           { id: "un_segunda", nombre: "Universidades nacionales: segunda por cargo y año", puntos: 0.25 },
           { id: "cbc_auxiliar", nombre: "CBC auxiliar por cargo y año", puntos: 0.5 },
           { id: "privada_invitado", nombre: "Universidad privada o docente invitado en otras universidades por cargo y año", puntos: 0.2 },
-          { id: "otros_niveles", nombre: "Terciario, secundario, tutores, consejeros o UBA-Programa", puntos: 0.2 },
+          { id: "otros_niveles", nombre: "Terciario, secundario, tutores, consejeros, UBA-Programa, Divulgador x Extension", puntos: 0.2 },
           { id: "cursos_primarios_relevancia", nombre: "Participación en cursos para colegios primarios de relevancia", puntos: 0.1 },
           { id: "charlas_seminarios_universidades", nombre: "Charlas y seminarios en universidades nacionales o extranjeras", puntos: 0.15 }
         ]
@@ -737,7 +737,7 @@ function migrateState(savedState) {
   if ((savedState.dataVersion || 1) < 35) {
     const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
     const otherLevels = cargoType?.subitems?.find((subitem) => subitem.id === "otros_niveles");
-    if (otherLevels) otherLevels.nombre = "Terciario, secundario, tutores, consejeros o UBA-Programa";
+    if (otherLevels) otherLevels.nombre = "Terciario, secundario, tutores, consejeros, UBA-Programa, Divulgador x Extension";
   }
   if ((savedState.dataVersion || 1) < 36) {
     const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
@@ -791,6 +791,11 @@ function migrateState(savedState) {
       const areaSubjectsIndex = otherType.subitems.findIndex((subitem) => subitem.id === "materias_area");
       otherType.subitems.splice(areaSubjectsIndex >= 0 ? areaSubjectsIndex + 1 : otherType.subitems.length, 0, teachingConferences);
     }
+  }
+  if ((savedState.dataVersion || 1) < 41) {
+    const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
+    const otherLevels = cargoType?.subitems?.find((subitem) => subitem.id === "otros_niveles");
+    if (otherLevels) otherLevels.nombre = "Terciario, secundario, tutores, consejeros, UBA-Programa, Divulgador x Extension";
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
