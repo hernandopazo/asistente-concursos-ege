@@ -3266,6 +3266,11 @@ function openTeachingOriginEditor(subitem, postulante, cargas, module) {
   window.collaboration?.applyPermissions?.();
 }
 
+function docentesSubitemUnitLabel(subitem) {
+  if (subitem.id === "cursillo_menos_20") return `${formatNumber(subitem.puntos)} hasta menos de 20 hs`;
+  return `${formatNumber(subitem.puntos)} puntos por unidad`;
+}
+
 function renderDocentesMatrix() {
   const container = document.querySelector("#docentes-matrix");
   const module = state.antecedentesDocentes;
@@ -3308,7 +3313,7 @@ function renderDocentesMatrix() {
         <tr>
           <th class="matrix-label">
             ${subitem.nombre}
-            <span>${formatNumber(subitem.puntos)} puntos por unidad</span>
+            <span>${docentesSubitemUnitLabel(subitem)}</span>
           </th>
           ${state.postulantes.map((postulante) => {
             const value = cargas[postulante.id].valores[subitem.id] ?? "";
