@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 41;
+const DATA_VERSION = 42;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -209,9 +209,10 @@ const initialState = {
         instruccion: "Ingrese la cantidad de presentaciones según tipo y autoría.",
         subitems: [
           { id: "cong_plenaria_primero", nombre: "Conferencia plenaria invitada — primero", puntos: 0.75 },
-          { id: "cong_plenaria_resto", nombre: "Conferencia plenaria invitada — resto", puntos: 0 },
-          { id: "cong_ordinaria_primero", nombre: "Conferencia ordinaria o simposio — primero", puntos: 0.6 },
-          { id: "cong_ordinaria_resto", nombre: "Conferencia ordinaria o simposio — resto", puntos: 0.3 },
+          { id: "cong_ordinaria_internacional_primero", nombre: "Conferencia ordinaria o simposio internacional — primero", puntos: 0.6 },
+          { id: "cong_ordinaria_nacional_primero", nombre: "Conferencia ordinaria o simposio nacional — primero", puntos: 0.4 },
+          { id: "cong_ordinaria_internacional_resto", nombre: "Conferencia ordinaria o simposio internacional — resto", puntos: 0.4 },
+          { id: "cong_ordinaria_nacional_resto", nombre: "Conferencia ordinaria o simposio nacional — resto", puntos: 0.2 },
           { id: "cong_actas_internacional_primero", nombre: "Trabajo completo en actas de congreso internacional — primero", puntos: 0.5 },
           { id: "cong_actas_internacional_resto", nombre: "Trabajo completo en actas de congreso internacional — resto", puntos: 0.25 },
           { id: "cong_actas_nacional_primero", nombre: "Trabajo completo en actas de congreso nacional — primero", puntos: 0.4 },
@@ -796,6 +797,36 @@ function migrateState(savedState) {
     const cargoType = savedState.antecedentesDocentes?.tipos?.find((tipo) => tipo.id === "cargo");
     const otherLevels = cargoType?.subitems?.find((subitem) => subitem.id === "otros_niveles");
     if (otherLevels) otherLevels.nombre = "Terciario, secundario, tutores, consejeros, UBA-Programa, Divulgador x Extension";
+  }
+  if ((savedState.dataVersion || 1) < 42) {
+    const congressType = savedState.antecedentesCientificos?.tipos?.find((tipo) => tipo.id === "congresos");
+    const defaultCongressType = initialState.antecedentesCientificos.tipos.find((tipo) => tipo.id === "congresos");
+    if (congressType && defaultCongressType) {
+      congressType.subitems = congressType.subitems.filter((subitem) => (
+        !["cong_plenaria_resto", "cong_ordinaria_primero", "cong_ordinaria_resto"].includes(subitem.id)
+      ));
+      const plenaryIndex = congressType.subitems.findIndex((subitem) => subitem.id === "cong_plenaria_primero");
+      defaultCongressType.subitems
+        .filter((subitem) => subitem.id.startsWith("cong_ordinaria_"))
+        .forEach((defaultItem, index) => {
+          if (congressType.subitems.some((subitem) => subitem.id === defaultItem.id)) return;
+          congressType.subitems.splice(plenaryIndex >= 0 ? plenaryIndex + 1 + index : congressType.subitems.length, 0, clone(defaultItem));
+        });
+      const migrateCongressValue = (carga) => {
+        if (!carga?.valores) return;
+        if (carga.valores.cong_ordinaria_primero !== undefined && carga.valores.cong_ordinaria_internacional_primero === undefined) {
+          carga.valores.cong_ordinaria_internacional_primero = carga.valores.cong_ordinaria_primero;
+        }
+        if (carga.valores.cong_ordinaria_resto !== undefined && carga.valores.cong_ordinaria_internacional_resto === undefined) {
+          carga.valores.cong_ordinaria_internacional_resto = carga.valores.cong_ordinaria_resto;
+        }
+        delete carga.valores.cong_plenaria_resto;
+        delete carga.valores.cong_ordinaria_primero;
+        delete carga.valores.cong_ordinaria_resto;
+      };
+      [savedState.antecedentesCientificos.cargas, ...Object.values(savedState.antecedentesCientificos.cargasEvaluadores || {})]
+        .forEach((cargas) => Object.values(cargas || {}).forEach(migrateCongressValue));
+    }
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
