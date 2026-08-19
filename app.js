@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 42;
+const DATA_VERSION = 43;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -210,8 +210,8 @@ const initialState = {
         subitems: [
           { id: "cong_plenaria_primero", nombre: "Conferencia plenaria invitada — primero", puntos: 0.75 },
           { id: "cong_ordinaria_internacional_primero", nombre: "Conferencia ordinaria o simposio internacional — primero", puntos: 0.6 },
-          { id: "cong_ordinaria_nacional_primero", nombre: "Conferencia ordinaria o simposio nacional — primero", puntos: 0.4 },
           { id: "cong_ordinaria_internacional_resto", nombre: "Conferencia ordinaria o simposio internacional — resto", puntos: 0.4 },
+          { id: "cong_ordinaria_nacional_primero", nombre: "Conferencia ordinaria o simposio nacional — primero", puntos: 0.4 },
           { id: "cong_ordinaria_nacional_resto", nombre: "Conferencia ordinaria o simposio nacional — resto", puntos: 0.2 },
           { id: "cong_actas_internacional_primero", nombre: "Trabajo completo en actas de congreso internacional — primero", puntos: 0.5 },
           { id: "cong_actas_internacional_resto", nombre: "Trabajo completo en actas de congreso internacional — resto", puntos: 0.25 },
@@ -826,6 +826,26 @@ function migrateState(savedState) {
       };
       [savedState.antecedentesCientificos.cargas, ...Object.values(savedState.antecedentesCientificos.cargasEvaluadores || {})]
         .forEach((cargas) => Object.values(cargas || {}).forEach(migrateCongressValue));
+    }
+  }
+  if ((savedState.dataVersion || 1) < 43) {
+    const congressType = savedState.antecedentesCientificos?.tipos?.find((tipo) => tipo.id === "congresos");
+    const preferredOrder = [
+      "cong_plenaria_primero",
+      "cong_ordinaria_internacional_primero",
+      "cong_ordinaria_internacional_resto",
+      "cong_ordinaria_nacional_primero",
+      "cong_ordinaria_nacional_resto"
+    ];
+    if (congressType?.subitems) {
+      congressType.subitems.sort((a, b) => {
+        const aIndex = preferredOrder.indexOf(a.id);
+        const bIndex = preferredOrder.indexOf(b.id);
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
     }
   }
   savedState.dataVersion = DATA_VERSION;
