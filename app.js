@@ -6473,6 +6473,12 @@ document.addEventListener("focusout", (event) => {
   if (event.target.closest("[data-calculation]")) hideCalculationTooltip();
 });
 
+document.addEventListener("wheel", (event) => {
+  const input = event.target.closest('input[type="number"]');
+  if (!input || document.activeElement !== input) return;
+  input.blur();
+}, { capture: true });
+
 document.addEventListener("change", (event) => {
   if (event.target.type !== "number" || event.target.value === "") return;
   if (event.target.matches("[data-cien-value], [data-publication-value]")) {
