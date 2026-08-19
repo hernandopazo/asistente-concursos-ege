@@ -3993,7 +3993,9 @@ function openPublicationEditor(tipo, group, postulante, cargas, module) {
     if (event.target === dialog) dialog.close();
   });
   dialog.addEventListener("close", () => {
+    const matrixScrollPositions = captureMatrixScrollPositions();
     renderCientificosMatrix();
+    restoreMatrixScrollPositions(matrixScrollPositions);
     window.collaboration?.applyPermissions?.();
   }, { once: true });
   refreshSummary();
