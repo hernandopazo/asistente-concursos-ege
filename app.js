@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 43;
+const DATA_VERSION = 44;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -29,13 +29,14 @@ const PUBLICATION_AUTHOR_POSITIONS = [
   { id: "mas_cinco", nombre: "Más de 5 autores" }
 ];
 
-const SINGLE_SCORE_PUBLICATION_GROUP_IDS = new Set(["sin_indice", "com_corta_sin_indice", "enviado"]);
+const SINGLE_SCORE_PUBLICATION_GROUP_IDS = new Set(["sin_indice", "sin_referato", "com_corta_sin_indice", "enviado"]);
 
 const SCIENTIFIC_PUBLICATION_GROUPS = [
   { id: "q1", nombre: "Publicación Q1", puntos: [2, 1.4, 0.7, 0.35] },
   { id: "q2", nombre: "Publicación Q2", puntos: [1.5, 1.05, 0.525, 0.2625] },
   { id: "q3_q4", nombre: "Publicación Q3-Q4", puntos: [1, 0.7, 0.35, 0.175] },
   { id: "sin_indice", nombre: "Publicación sin índice", puntos: [0.3, 0.21, 0.105, 0.0525] },
+  { id: "sin_referato", nombre: "Publicaciones sin referato", puntos: [0.08] },
   { id: "com_corta_q1", nombre: "Comunicación corta Q1", puntos: [1, 0.7, 0.35, 0.175] },
   { id: "com_corta_q2", nombre: "Comunicación corta Q2", puntos: [0.75, 0.525, 0.2625, 0.13125] },
   { id: "com_corta_q3_q4", nombre: "Comunicación corta Q3-Q4", puntos: [0.5, 0.35, 0.175, 0.0875] },
@@ -846,6 +847,14 @@ function migrateState(savedState) {
         if (bIndex === -1) return -1;
         return aIndex - bIndex;
       });
+    }
+  }
+  if ((savedState.dataVersion || 1) < 44) {
+    const publicationType = savedState.antecedentesCientificos?.tipos?.find((tipo) => tipo.id === "publicaciones");
+    const noRefereeItem = SCIENTIFIC_PUBLICATION_SUBITEMS.find((subitem) => subitem.id === "pub_sin_referato_unica");
+    if (publicationType && noRefereeItem && !publicationType.subitems?.some((subitem) => subitem.id === noRefereeItem.id)) {
+      const noIndexPosition = publicationType.subitems.findIndex((subitem) => subitem.id === "pub_sin_indice_unica");
+      publicationType.subitems.splice(noIndexPosition >= 0 ? noIndexPosition + 1 : publicationType.subitems.length, 0, clone(noRefereeItem));
     }
   }
   savedState.dataVersion = DATA_VERSION;
