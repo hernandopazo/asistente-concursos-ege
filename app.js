@@ -4384,31 +4384,19 @@ function renderExtensionMatrix() {
             ${tipo.subitems.flatMap((subitem) => {
               const compositeParts = extensionCompositeParts(subitem);
               if (compositeParts) {
-                return [
-                  `
-                    <tr class="extension-composite-heading">
-                      <th class="matrix-label">${subitem.nombre}<span>${compositeParts.map((part) => `${part.label} ${formatNumber(part.points)}`).join(" · ")}</span></th>
-                      ${state.postulantes.map((postulante) => {
-                        const valores = cargas[postulante.id].valores || {};
-                        const score = extensionSubitemRawScore(subitem, valores);
-                        return `<td class="score-cell"><strong data-ext-composite="${subitem.id}:${postulante.id}">${formatNumber(score)}</strong></td>`;
-                      }).join("")}
-                    </tr>
-                  `,
-                  ...compositeParts.map((part) => `
-                    <tr>
-                      <th class="matrix-label subitem-nested-label">${part.label}<span>${formatNumber(part.points)} puntos por unidad</span></th>
-                      ${state.postulantes.map((postulante) => {
-                        const fieldId = extensionCompositeFieldId(subitem, part.kind);
-                        const value = cargas[postulante.id].valores[fieldId] ?? "";
-                        const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
-                          ? antecedentDifference(module, postulante.id, fieldId)
-                          : { differs: false, explanation: "" };
-                        return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-ext-value="${fieldId}" data-ext-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
-                      }).join("")}
-                    </tr>
-                  `)
-                ];
+                return compositeParts.map((part) => `
+                  <tr>
+                    <th class="matrix-label subitem-nested-label">${part.label}<span>${formatNumber(part.points)} puntos por unidad</span></th>
+                    ${state.postulantes.map((postulante) => {
+                      const fieldId = extensionCompositeFieldId(subitem, part.kind);
+                      const value = cargas[postulante.id].valores[fieldId] ?? "";
+                      const difference = activeExtensionCargaId === "consolidada" && module.modalidad === "evaluadores"
+                        ? antecedentDifference(module, postulante.id, fieldId)
+                        : { differs: false, explanation: "" };
+                      return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-ext-value="${fieldId}" data-ext-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                    }).join("")}
+                  </tr>
+                `);
               }
               return `
                 <tr>
