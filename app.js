@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 45;
+const DATA_VERSION = 46;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -330,8 +330,8 @@ const initialState = {
         maxInterno: 5,
         instruccion: "Ingrese la cantidad de antecedentes según duración o función profesional.",
         subitems: [
-          { id: "prof_tres_anos_editor", nombre: "Editor asociado (3 años o más)", puntos: 2.5 },
-          { id: "prof_menos_tres_editorial", nombre: "Editor asociado (menos de 3 años)", puntos: 1.5 },
+          { id: "prof_tres_anos_editor", nombre: "Editor asociado (3 años o más)", puntos: 1.5 },
+          { id: "prof_menos_tres_editorial", nombre: "Editor asociado (menos de 3 años)", puntos: 0.75 },
           { id: "prof_editor_invitado", nombre: "Editor invitado", puntos: 0.33 }
         ]
       },
@@ -862,6 +862,13 @@ function migrateState(savedState) {
       ?.find((tipo) => tipo.id === "convenios_oat_stan")
       ?.subitems?.find((subitem) => subitem.id === "prof_asesoramiento");
     if (advisoryItem) advisoryItem.puntos = 0.35;
+  }
+  if ((savedState.dataVersion || 1) < 46) {
+    const professionalRoleType = savedState.antecedentesProfesionales?.tipos?.find((tipo) => tipo.id === "cargo_profesional");
+    const seniorEditor = professionalRoleType?.subitems?.find((subitem) => subitem.id === "prof_tres_anos_editor");
+    const juniorEditor = professionalRoleType?.subitems?.find((subitem) => subitem.id === "prof_menos_tres_editorial");
+    if (seniorEditor) seniorEditor.puntos = 1.5;
+    if (juniorEditor) juniorEditor.puntos = 0.75;
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
@@ -2162,8 +2169,8 @@ function ensureProfessionalSubitem(tipo, subitem, afterId = null) {
 
 function normalizeProfessionalCompositeItems(module) {
   const cargoTipo = module?.tipos?.find((tipo) => tipo.id === "cargo_profesional");
-  ensureProfessionalSubitem(cargoTipo, { id: "prof_tres_anos_editor", nombre: "Editor asociado (3 años o más)", puntos: 2.5 });
-  ensureProfessionalSubitem(cargoTipo, { id: "prof_menos_tres_editorial", nombre: "Editor asociado (menos de 3 años)", puntos: 1.5 }, "prof_tres_anos_editor");
+  ensureProfessionalSubitem(cargoTipo, { id: "prof_tres_anos_editor", nombre: "Editor asociado (3 años o más)", puntos: 1.5 });
+  ensureProfessionalSubitem(cargoTipo, { id: "prof_menos_tres_editorial", nombre: "Editor asociado (menos de 3 años)", puntos: 0.75 }, "prof_tres_anos_editor");
   ensureProfessionalSubitem(cargoTipo, { id: "prof_editor_invitado", nombre: "Editor invitado", puntos: 0.33 }, "prof_menos_tres_editorial");
 
   const conveniosTipo = module?.tipos?.find((tipo) => tipo.id === "convenios_oat_stan");
