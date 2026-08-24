@@ -4386,7 +4386,7 @@ function renderExtensionMatrix() {
               if (compositeParts) {
                 return compositeParts.map((part) => `
                   <tr>
-                    <th class="matrix-label subitem-nested-label">${part.label}<span>${formatNumber(part.points)} puntos por unidad</span></th>
+                    <th class="matrix-label">${part.label}<span>${formatNumber(part.points)} puntos por unidad</span></th>
                     ${state.postulantes.map((postulante) => {
                       const fieldId = extensionCompositeFieldId(subitem, part.kind);
                       const value = cargas[postulante.id].valores[fieldId] ?? "";
