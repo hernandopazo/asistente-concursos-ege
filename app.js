@@ -4185,14 +4185,30 @@ function renderExtensionConfig() {
   state.antecedentesExtension.tipos.forEach((tipo, typeIndex) => {
     const section = document.createElement("section");
     section.className = "teaching-type";
-    const subitems = tipo.subitems.map((subitem, itemIndex) => `
-      <div class="teaching-subitem-row">
-        <input type="text" value="${escapeAttribute(subitem.nombre)}" data-ext-type="${typeIndex}" data-ext-item="${itemIndex}" data-ext-field="nombre" aria-label="Nombre del subítem de extensión">
-        <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-ext-type="${typeIndex}" data-ext-item="${itemIndex}" data-ext-field="puntos" aria-label="Puntaje interno">
-        <output class="teaching-derived-value" data-ext-item-simple="${typeIndex}:${itemIndex}">${formatNumber(extensionRelativizedValue(subitem.puntos, getExtensionMaxSimple()))}</output>
-        <output class="teaching-derived-value" data-ext-item-exclusive="${typeIndex}:${itemIndex}">${formatNumber(extensionRelativizedValue(subitem.puntos, getExtensionMaxExclusiva()))}</output>
-      </div>
-    `).join("");
+    const subitems = tipo.subitems.flatMap((subitem, itemIndex) => {
+      const compositeParts = extensionCompositeParts(subitem);
+      if (compositeParts) {
+        return compositeParts.map((part, partIndex) => {
+          const editableRoot = partIndex === 0;
+          return `
+            <div class="teaching-subitem-row">
+              <input type="text" value="${escapeAttribute(part.label)}" readonly aria-label="Subítem de extensión">
+              <input type="number" min="0" step="0.01" value="${editableNumber(part.points, 2)}" data-ext-composite-point="${typeIndex}:${itemIndex}:${partIndex}" ${editableRoot ? `data-ext-type="${typeIndex}" data-ext-item="${itemIndex}" data-ext-field="puntos"` : "readonly"} aria-label="Puntaje interno de ${escapeAttribute(part.label)}">
+              <output class="teaching-derived-value" data-ext-composite-item-simple="${typeIndex}:${itemIndex}:${partIndex}">${formatNumber(extensionRelativizedValue(part.points, getExtensionMaxSimple()))}</output>
+              <output class="teaching-derived-value" data-ext-composite-item-exclusive="${typeIndex}:${itemIndex}:${partIndex}">${formatNumber(extensionRelativizedValue(part.points, getExtensionMaxExclusiva()))}</output>
+            </div>
+          `;
+        });
+      }
+      return `
+        <div class="teaching-subitem-row">
+          <input type="text" value="${escapeAttribute(subitem.nombre)}" data-ext-type="${typeIndex}" data-ext-item="${itemIndex}" data-ext-field="nombre" aria-label="Nombre del subítem de extensión">
+          <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-ext-type="${typeIndex}" data-ext-item="${itemIndex}" data-ext-field="puntos" aria-label="Puntaje interno">
+          <output class="teaching-derived-value" data-ext-item-simple="${typeIndex}:${itemIndex}">${formatNumber(extensionRelativizedValue(subitem.puntos, getExtensionMaxSimple()))}</output>
+          <output class="teaching-derived-value" data-ext-item-exclusive="${typeIndex}:${itemIndex}">${formatNumber(extensionRelativizedValue(subitem.puntos, getExtensionMaxExclusiva()))}</output>
+        </div>
+      `;
+    }).join("");
     section.innerHTML = `
       <div class="teaching-type-header">
         <label>
@@ -4286,6 +4302,27 @@ function updateExtensionConfigDerived() {
       typeExclusive.tabIndex = 0;
     }
     tipo.subitems.forEach((subitem, itemIndex) => {
+      const compositeParts = extensionCompositeParts(subitem);
+      if (compositeParts) {
+        compositeParts.forEach((part, partIndex) => {
+          const key = `${typeIndex}:${itemIndex}:${partIndex}`;
+          const pointInput = document.querySelector(`[data-ext-composite-point="${key}"]`);
+          const simple = document.querySelector(`[data-ext-composite-item-simple="${key}"]`);
+          const exclusive = document.querySelector(`[data-ext-composite-item-exclusive="${key}"]`);
+          if (pointInput && document.activeElement !== pointInput) pointInput.value = editableNumber(part.points, 2);
+          if (simple) {
+            simple.textContent = formatNumber(extensionRelativizedValue(part.points, getExtensionMaxSimple()));
+            updateCalculation(simple, `${formatNumber(part.points)} × ${formatNumber(getExtensionMaxSimple())} ÷ ${formatNumber(extensionInternalMax())} = ${simple.textContent}`);
+            simple.tabIndex = 0;
+          }
+          if (exclusive) {
+            exclusive.textContent = formatNumber(extensionRelativizedValue(part.points, getExtensionMaxExclusiva()));
+            updateCalculation(exclusive, `${formatNumber(part.points)} × ${formatNumber(getExtensionMaxExclusiva())} ÷ ${formatNumber(extensionInternalMax())} = ${exclusive.textContent}`);
+            exclusive.tabIndex = 0;
+          }
+        });
+        return;
+      }
       const simple = document.querySelector(`[data-ext-item-simple="${typeIndex}:${itemIndex}"]`);
       const exclusive = document.querySelector(`[data-ext-item-exclusive="${typeIndex}:${itemIndex}"]`);
       if (simple) {
