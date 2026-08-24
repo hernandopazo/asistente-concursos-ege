@@ -4834,7 +4834,8 @@ function renderProfesionalesMatrix() {
                     const difference = activeProfesionalesCargaId === "consolidada" && module.modalidad === "evaluadores"
                       ? antecedentDifference(module, postulante.id, subitem.id)
                       : { differs: false, explanation: "" };
-                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="1" inputmode="numeric" value="${value === "" ? "" : editableNumber(value, 0)}" data-prof-value="${subitem.id}" data-prof-integer="true" data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
+                    const allowsDecimal = subitem.id === "prof_convenios";
+                    return `<td class="note-cell${difference.differs ? " has-difference" : ""}"><input type="number" min="0" step="${allowsDecimal ? "0.01" : "1"}" inputmode="${allowsDecimal ? "decimal" : "numeric"}" value="${value === "" ? "" : editableNumber(value, allowsDecimal ? 2 : 0)}" data-prof-value="${subitem.id}" ${allowsDecimal ? 'data-prof-decimal="true"' : 'data-prof-integer="true"'} data-postulante-id="${postulante.id}" ${difference.differs ? calculationAttribute(`Diferencia entre evaluadores:\n${difference.explanation}`) : ""}></td>`;
                   }).join("")}
                 </tr>
               `;
@@ -4902,7 +4903,12 @@ function renderProfesionalesMatrix() {
   container.querySelectorAll("[data-prof-value]").forEach((input) => {
     input.addEventListener("input", (event) => {
       const postulanteId = event.target.dataset.postulanteId;
-      const value = event.target.value === "" ? "" : String(Math.max(0, Math.trunc(Number(event.target.value) || 0)));
+      let value = event.target.value;
+      if (event.target.dataset.profDecimal === "true") {
+        if (value !== "" && Number(value) < 0) value = "0";
+      } else {
+        value = value === "" ? "" : String(Math.max(0, Math.trunc(Number(value) || 0)));
+      }
       if (event.target.value !== value) event.target.value = value;
       cargas[postulanteId].valores[event.target.dataset.profValue] = value;
       if (activeProfesionalesCargaId === "consolidada") {
