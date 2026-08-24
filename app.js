@@ -2115,8 +2115,8 @@ function professionalCompositeParts(subitem) {
   if (subitem.modo === "organizacion_congreso") {
     const organizacionPoints = Number(subitem.puntos || 0);
     return [
-      { kind: "organizacion", label: "Organización", points: organizacionPoints },
-      { kind: "colaboracion", label: "Colaboración", points: organizacionPoints * Number(subitem.colaboracionFactor ?? 0.33) }
+      { kind: "organizacion", label: "Organización de congresos o reuniones", points: organizacionPoints },
+      { kind: "colaboracion", label: "Colaboración en congresos o reuniones", points: organizacionPoints * Number(subitem.colaboracionFactor ?? 0.33) }
     ];
   }
   return null;
