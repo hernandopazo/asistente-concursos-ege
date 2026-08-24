@@ -4578,14 +4578,30 @@ function renderProfesionalesConfig() {
   state.antecedentesProfesionales.tipos.forEach((tipo, typeIndex) => {
     const section = document.createElement("section");
     section.className = "teaching-type";
-    const subitems = tipo.subitems.map((subitem, itemIndex) => `
-      <div class="teaching-subitem-row">
-        <input type="text" value="${escapeAttribute(subitem.nombre)}" data-prof-type="${typeIndex}" data-prof-item="${itemIndex}" data-prof-field="nombre" aria-label="Nombre del subítem profesional">
-        <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-prof-type="${typeIndex}" data-prof-item="${itemIndex}" data-prof-field="puntos" aria-label="Puntaje interno">
-        <output class="teaching-derived-value" data-prof-item-simple="${typeIndex}:${itemIndex}">${formatNumber(profesionalesRelativizedValue(subitem.puntos, getProfesionalesMaxSimple()))}</output>
-        <output class="teaching-derived-value" data-prof-item-exclusive="${typeIndex}:${itemIndex}">${formatNumber(profesionalesRelativizedValue(subitem.puntos, getProfesionalesMaxExclusiva()))}</output>
-      </div>
-    `).join("");
+    const subitems = tipo.subitems.flatMap((subitem, itemIndex) => {
+      const compositeParts = professionalCompositeParts(subitem);
+      if (compositeParts) {
+        return compositeParts.map((part, partIndex) => {
+          const editableRoot = partIndex === 0;
+          return `
+            <div class="teaching-subitem-row">
+              <input type="text" value="${escapeAttribute(part.label)}" readonly aria-label="Subítem profesional">
+              <input type="number" min="0" step="0.01" value="${editableNumber(part.points, 2)}" data-prof-composite-point="${typeIndex}:${itemIndex}:${partIndex}" ${editableRoot ? `data-prof-type="${typeIndex}" data-prof-item="${itemIndex}" data-prof-field="puntos"` : "readonly"} aria-label="Puntaje interno de ${escapeAttribute(part.label)}">
+              <output class="teaching-derived-value" data-prof-composite-item-simple="${typeIndex}:${itemIndex}:${partIndex}">${formatNumber(profesionalesRelativizedValue(part.points, getProfesionalesMaxSimple()))}</output>
+              <output class="teaching-derived-value" data-prof-composite-item-exclusive="${typeIndex}:${itemIndex}:${partIndex}">${formatNumber(profesionalesRelativizedValue(part.points, getProfesionalesMaxExclusiva()))}</output>
+            </div>
+          `;
+        });
+      }
+      return `
+        <div class="teaching-subitem-row">
+          <input type="text" value="${escapeAttribute(subitem.nombre)}" data-prof-type="${typeIndex}" data-prof-item="${itemIndex}" data-prof-field="nombre" aria-label="Nombre del subítem profesional">
+          <input type="number" min="0" step="0.01" value="${editableNumber(subitem.puntos, 2)}" data-prof-type="${typeIndex}" data-prof-item="${itemIndex}" data-prof-field="puntos" aria-label="Puntaje interno">
+          <output class="teaching-derived-value" data-prof-item-simple="${typeIndex}:${itemIndex}">${formatNumber(profesionalesRelativizedValue(subitem.puntos, getProfesionalesMaxSimple()))}</output>
+          <output class="teaching-derived-value" data-prof-item-exclusive="${typeIndex}:${itemIndex}">${formatNumber(profesionalesRelativizedValue(subitem.puntos, getProfesionalesMaxExclusiva()))}</output>
+        </div>
+      `;
+    }).join("");
     section.innerHTML = `
       <div class="teaching-type-header">
         <label>
@@ -4679,6 +4695,27 @@ function updateProfesionalesConfigDerived() {
       typeExclusive.tabIndex = 0;
     }
     tipo.subitems.forEach((subitem, itemIndex) => {
+      const compositeParts = professionalCompositeParts(subitem);
+      if (compositeParts) {
+        compositeParts.forEach((part, partIndex) => {
+          const key = `${typeIndex}:${itemIndex}:${partIndex}`;
+          const pointInput = document.querySelector(`[data-prof-composite-point="${key}"]`);
+          const simple = document.querySelector(`[data-prof-composite-item-simple="${key}"]`);
+          const exclusive = document.querySelector(`[data-prof-composite-item-exclusive="${key}"]`);
+          if (pointInput && document.activeElement !== pointInput) pointInput.value = editableNumber(part.points, 2);
+          if (simple) {
+            simple.textContent = formatNumber(profesionalesRelativizedValue(part.points, getProfesionalesMaxSimple()));
+            updateCalculation(simple, `${formatNumber(part.points)} × ${formatNumber(getProfesionalesMaxSimple())} ÷ ${formatNumber(profesionalesInternalMax())} = ${simple.textContent}`);
+            simple.tabIndex = 0;
+          }
+          if (exclusive) {
+            exclusive.textContent = formatNumber(profesionalesRelativizedValue(part.points, getProfesionalesMaxExclusiva()));
+            updateCalculation(exclusive, `${formatNumber(part.points)} × ${formatNumber(getProfesionalesMaxExclusiva())} ÷ ${formatNumber(profesionalesInternalMax())} = ${exclusive.textContent}`);
+            exclusive.tabIndex = 0;
+          }
+        });
+        return;
+      }
       const simple = document.querySelector(`[data-prof-item-simple="${typeIndex}:${itemIndex}"]`);
       const exclusive = document.querySelector(`[data-prof-item-exclusive="${typeIndex}:${itemIndex}"]`);
       if (simple) {
