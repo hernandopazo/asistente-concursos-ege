@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 44;
+const DATA_VERSION = 45;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -342,7 +342,7 @@ const initialState = {
         instruccion: "Ingrese la cantidad de servicios, asesorías o convenios realizados.",
         subitems: [
           { id: "prof_oat_stan", nombre: "Director OAT/STAN", puntos: 1.5 },
-          { id: "prof_asesoramiento", nombre: "Asesoramiento", puntos: 0.75 },
+          { id: "prof_asesoramiento", nombre: "Asesoramiento", puntos: 0.35 },
           { id: "prof_convenios", nombre: "Convenios", puntos: 2 },
           { id: "prof_extension_covid", nombre: "Extensión COVID", puntos: 1 }
         ]
@@ -856,6 +856,12 @@ function migrateState(savedState) {
       const noIndexPosition = publicationType.subitems.findIndex((subitem) => subitem.id === "pub_sin_indice_unica");
       publicationType.subitems.splice(noIndexPosition >= 0 ? noIndexPosition + 1 : publicationType.subitems.length, 0, clone(noRefereeItem));
     }
+  }
+  if ((savedState.dataVersion || 1) < 45) {
+    const advisoryItem = savedState.antecedentesProfesionales?.tipos
+      ?.find((tipo) => tipo.id === "convenios_oat_stan")
+      ?.subitems?.find((subitem) => subitem.id === "prof_asesoramiento");
+    if (advisoryItem) advisoryItem.puntos = 0.35;
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
@@ -2162,7 +2168,7 @@ function normalizeProfessionalCompositeItems(module) {
 
   const conveniosTipo = module?.tipos?.find((tipo) => tipo.id === "convenios_oat_stan");
   ensureProfessionalSubitem(conveniosTipo, { id: "prof_oat_stan", nombre: "Director OAT/STAN", puntos: 1.5 });
-  ensureProfessionalSubitem(conveniosTipo, { id: "prof_asesoramiento", nombre: "Asesoramiento", puntos: 0.75 }, "prof_oat_stan");
+  ensureProfessionalSubitem(conveniosTipo, { id: "prof_asesoramiento", nombre: "Asesoramiento", puntos: 0.35 }, "prof_oat_stan");
 
   const subitem = module?.tipos
     ?.find((tipo) => tipo.id === "otros_profesionales")
