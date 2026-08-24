@@ -2000,7 +2000,7 @@ function extensionCompositeParts(subitem) {
   if (subitem.modo === "organizacion_congreso") {
     const organizacionPoints = Number(subitem.puntos || 0);
     return [
-      { kind: "organizacion", label: "Organización", points: organizacionPoints },
+      { kind: "organizacion", label: "Organización de eventos", points: organizacionPoints },
       { kind: "congreso", label: "Presentación de proyectos en congreso", points: organizacionPoints * Number(subitem.congresoFactor ?? 0.33) }
     ];
   }
