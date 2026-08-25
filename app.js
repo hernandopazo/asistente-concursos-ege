@@ -1,5 +1,5 @@
 const STORAGE_KEY = "calculadora-concursos-v1";
-const DATA_VERSION = 46;
+const DATA_VERSION = 47;
 
 const TEACHING_APPOINTMENT_ORIGINS = [
   { id: "ege_ge", nombre: "EGE Genética y Evolución", factor: 1 },
@@ -869,6 +869,27 @@ function migrateState(savedState) {
     const juniorEditor = professionalRoleType?.subitems?.find((subitem) => subitem.id === "prof_menos_tres_editorial");
     if (seniorEditor) seniorEditor.puntos = 1.5;
     if (juniorEditor) juniorEditor.puntos = 0.75;
+  }
+  if ((savedState.dataVersion || 1) < 47) {
+    const scholarshipType = savedState.otrosAntecedentes?.tipos?.find((tipo) => tipo.id === "becas");
+    if (scholarshipType?.subitems) {
+      const removedIds = [];
+      scholarshipType.subitems = scholarshipType.subitems.filter((subitem) => {
+        const emptyName = !String(subitem.nombre || "").trim();
+        const emptyScore = subitem.puntos === "" || Number(subitem.puntos || 0) === 0;
+        if (emptyName && emptyScore) {
+          removedIds.push(subitem.id);
+          return false;
+        }
+        return true;
+      });
+      if (removedIds.length) {
+        [savedState.otrosAntecedentes.cargas, ...Object.values(savedState.otrosAntecedentes.cargasEvaluadores || {})]
+          .forEach((cargas) => Object.values(cargas || {}).forEach((carga) => {
+            removedIds.forEach((id) => delete carga.valores?.[id]);
+          }));
+      }
+    }
   }
   savedState.dataVersion = DATA_VERSION;
   savedState.administrativeDetails ||= "";
